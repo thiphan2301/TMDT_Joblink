@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { useState } from 'react';
+import Login from './login';
+import Register from './register';
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const [currentScreen, setCurrentScreen] = useState('login'); // 'login' | 'register'
 
   return (
-    <h1>Hello</h1>
-  )
+      <>
+        {currentScreen === 'login' ? (
+            <Login onNavigateToRegister={() => setCurrentScreen('register')} />
+        ) : (
+            <Register onNavigateToLogin={() => setCurrentScreen('login')} />
+        )}
+      </>
+  );
 }
-
-export default App

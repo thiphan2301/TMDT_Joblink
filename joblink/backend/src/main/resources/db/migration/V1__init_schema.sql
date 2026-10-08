@@ -423,7 +423,7 @@ CREATE TABLE subscriptions (
                                package_id INT NOT NULL,
                                order_id INT NOT NULL,
                                start_at TIMESTAMP NOT NULL,
-                               end_at TIMESTAMP NOT NULL,
+                               end_at DATETIME NULL DEFAULT NULL,
                                status ENUM('active','cancelled','expired') NOT NULL DEFAULT 'active',
                                cancelled_at TIMESTAMP NULL DEFAULT NULL,
                                PRIMARY KEY (id),
