@@ -1,0 +1,141 @@
+.candidate-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  min-height: 90px;
+  padding: 18px 32px;
+  border-bottom: 1px solid #e5e9f0;
+  background: #fff;
+}
+
+.header-left,
+.header-right,
+.header-breadcrumb,
+.header-account {
+  display: flex;
+  align-items: center;
+}
+
+.header-left {
+  gap: 20px;
+  min-width: 0;
+}
+
+.header-menu-button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #252a30;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.header-menu-button:hover {
+  background: #eef5ff;
+}
+
+.header-breadcrumb {
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 15px;
+}
+
+.header-breadcrumb-parent,
+.header-breadcrumb-arrow {
+  color: #64748b;
+}
+
+.header-breadcrumb-arrow {
+  font-size: 24px;
+}
+
+.header-page-title {
+  color: #252a30;
+  font-weight: 600;
+}
+
+.header-right {
+  gap: 24px;
+}
+
+.header-employer {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.header-employer:hover {
+  color: #0066ee;
+}
+
+.header-notification {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.header-account {
+  gap: 12px;
+  padding-left: 24px;
+  border-left: 1px solid #e5e9f0;
+}
+
+.header-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #eaf1fc;
+  color: #547aaf;
+  font-weight: 700;
+}
+
+.header-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.header-user-info span {
+  color: #64748b;
+}
+
+@media (max-width: 1100px) {
+  .header-employer {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .candidate-header {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .header-left {
+    flex: 1;
+    gap: 10px;
+  }
+
+  .header-breadcrumb-parent,
+  .header-breadcrumb-arrow,
+  .header-notification,
+  .header-user-info {
+    display: none;
+  }
+
+  .header-account {
+    padding-left: 0;
+    border-left: none;
+  }
+}
