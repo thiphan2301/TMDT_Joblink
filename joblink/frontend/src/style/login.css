@@ -1,0 +1,45 @@
+/* Styling cho giao diện Đăng nhập */
+
+.auth-container {
+    @apply min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-slate-200;
+}
+
+.blob-bg-1 {
+    @apply absolute top-[-10%] left-[-5%] w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob;
+}
+
+.blob-bg-2 {
+    @apply absolute top-[20%] right-[-10%] w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob;
+}
+
+.blob-bg-3 {
+    @apply absolute bottom-[-20%] left-[20%] w-96 h-96 bg-sky-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob;
+}
+
+.auth-card {
+    @apply bg-white rounded-2xl shadow-2xl flex flex-col md:flex-row w-full max-w-5xl overflow-hidden z-10 relative;
+}
+
+.login-sidebar {
+    @apply bg-slate-50 w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between border-r border-slate-100;
+}
+
+.login-form-wrapper {
+    @apply w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white;
+}
+
+.input-field {
+    @apply block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-colors bg-slate-50/50 text-slate-900 text-sm outline-none;
+}
+
+.input-field-pass {
+    @apply block w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-600 transition-colors bg-slate-50/50 text-slate-900 text-sm outline-none;
+}
+
+.btn-primary {
+    @apply w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors mt-2 shadow-md hover:shadow-lg;
+}
+
+.btn-social {
+    @apply flex items-center justify-center gap-2 w-full px-4 py-2.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700;
+}

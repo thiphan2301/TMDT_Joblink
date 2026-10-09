@@ -9,7 +9,14 @@ body {
   color: #182230;
   background: #f7f9fc;
 }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
 button,
 input,
 select {
