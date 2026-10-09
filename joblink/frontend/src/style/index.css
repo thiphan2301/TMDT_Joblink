@@ -1,0 +1,48 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: Arial, sans-serif;
+  color: #182230;
+  background: #f7f9fc;
+}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #087cff;
+  outline-offset: 3px;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.candidate-content {
+  padding: 32px;
+}
+
+.candidate-content h1 {
+  margin-top: 0;
+}
+
+@media (max-width: 700px) {
+  .candidate-content {
+    padding: 20px 16px;
+  }
+}

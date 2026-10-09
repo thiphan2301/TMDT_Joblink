@@ -8,7 +8,7 @@ import {
     EyeOff,
     ArrowRight
 } from 'lucide-react';
-import './css/login.css';
+import './style/login.css';
 
 export default function Login({ onNavigateToRegister }) {
     const [showPassword, setShowPassword] = useState(false);

@@ -10,7 +10,7 @@ import {
     Building2,
     ArrowRight
 } from 'lucide-react';
-import './css/register.css';
+import './style/register.css';
 
 export default function Register({ onNavigateToLogin }) {
     const [role, setRole] = useState('candidate');
