@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router'; // 1. Thêm useNavigate
 import {
     ShieldCheck,
     CheckCircle2,
@@ -8,11 +9,14 @@ import {
     EyeOff,
     User,
     Building2,
-    ArrowRight
+    ArrowRight,
+    ArrowLeft // 2. Thêm icon ArrowLeft
 } from 'lucide-react';
-import './style/register.css';
+import '../../style/register.css';
 
 export default function Register({ onNavigateToLogin }) {
+    const navigate = useNavigate(); // 3. Khởi tạo điều hướng
+
     const [role, setRole] = useState('candidate');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -34,6 +38,7 @@ export default function Register({ onNavigateToLogin }) {
             return;
         }
         console.log('Đăng ký:', { role, email, password, agreed });
+        // Sau khi đăng ký thành công có thể gọi navigate('/login')
     };
 
     return (
@@ -48,6 +53,16 @@ export default function Register({ onNavigateToLogin }) {
                 {/* Cột trái: Thông tin (Nền xanh đậm) */}
                 <div className="register-sidebar">
                     <div>
+                        {/* 4. NÚT QUAY LẠI TRANG CHỦ (Chữ màu sáng cho nền tối) */}
+                        <button
+                            type="button"
+                            onClick={() => navigate('/discover')}
+                            className="flex items-center text-slate-300 hover:text-white transition-colors text-xs md:text-sm mb-6 md:mb-8 font-medium group"
+                        >
+                            <ArrowLeft className="w-4 h-4 mr-1.5 transform group-hover:-translate-x-1 transition-transform" />
+                            Quay lại trang chủ
+                        </button>
+
                         {/* Logo */}
                         <div className="flex items-center gap-3 mb-8">
                             <div className="bg-blue-600 rounded-xl p-2 flex items-center justify-center">
@@ -102,7 +117,7 @@ export default function Register({ onNavigateToLogin }) {
                     </div>
                 </div>
 
-                {/* Cột phải: Form đăng ký */}
+                {/* Cột phải: Form đăng ký (Giữ nguyên) */}
                 <div className="register-form-wrapper">
                     <h2 className="text-2xl font-bold text-slate-800 mb-1">Đăng ký tài khoản</h2>
                     <p className="text-slate-500 text-xs mb-6">Khởi đầu hành trình sự nghiệp mới cùng ViecLamViet</p>

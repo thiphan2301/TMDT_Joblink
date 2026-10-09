@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router'; // Thêm useNavigate
 import {
     ShieldCheck,
     CheckCircle2,
@@ -6,11 +7,13 @@ import {
     Lock,
     Eye,
     EyeOff,
-    ArrowRight
+    ArrowRight,
+    ArrowLeft // Thêm icon ArrowLeft
 } from 'lucide-react';
-import './style/login.css';
+import '../../style/login.css';
 
-export default function Login({ onNavigateToRegister }) {
+export default function Login({ onNavigateToRegister, onLoginSuccess }) { // Nhận thêm prop onLoginSuccess
+    const navigate = useNavigate(); // Khởi tạo điều hướng
     const [showPassword, setShowPassword] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -19,6 +22,11 @@ export default function Login({ onNavigateToRegister }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         console.log('Đăng nhập với:', { email, password, rememberMe });
+
+        // Bạn có thể gọi onLoginSuccess() ở đây nếu validate thành công
+        if (onLoginSuccess) {
+            onLoginSuccess();
+        }
     };
 
     return (
@@ -34,6 +42,16 @@ export default function Login({ onNavigateToRegister }) {
                 {/* Cột trái: Thông tin */}
                 <div className="login-sidebar">
                     <div>
+                        {/* NÚT QUAY LẠI TRANG CHỦ */}
+                        <button
+                            type="button"
+                            onClick={() => navigate('/discover')} // Quay lại trang chủ
+                            className="flex items-center text-slate-500 hover:text-blue-600 transition-colors text-sm mb-8 font-medium group"
+                        >
+                            <ArrowLeft className="w-4 h-4 mr-1.5 transform group-hover:-translate-x-1 transition-transform" />
+                            Quay lại trang chủ
+                        </button>
+
                         {/* Logo */}
                         <div className="flex items-center gap-3 mb-10">
                             <div className="bg-blue-600 rounded-xl p-2 flex items-center justify-center">
@@ -98,7 +116,7 @@ export default function Login({ onNavigateToRegister }) {
                     </div>
                 </div>
 
-                {/* Cột phải: Form đăng nhập */}
+                {/* Cột phải: Form đăng nhập (Giữ nguyên) */}
                 <div className="login-form-wrapper">
                     <h2 className="text-2xl font-bold text-slate-800 mb-2">Đăng nhập</h2>
                     <p className="text-slate-500 text-sm mb-8">Chào mừng bạn quay trở lại!</p>
@@ -182,8 +200,8 @@ export default function Login({ onNavigateToRegister }) {
                     <div className="mt-8 mb-6 flex items-center">
                         <div className="flex-grow border-t border-slate-200"></div>
                         <span className="mx-4 text-xs font-medium text-slate-400 tracking-wider">
-              HOẶC ĐĂNG NHẬP VỚI
-            </span>
+                            HOẶC ĐĂNG NHẬP VỚI
+                        </span>
                         <div className="flex-grow border-t border-slate-200"></div>
                     </div>
 
