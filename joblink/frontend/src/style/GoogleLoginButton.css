@@ -1,0 +1,9 @@
+/* Khung chứa nút Google (Google tự vẽ nút bên trong) */
+.google-login-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  overflow: hidden;
+}
