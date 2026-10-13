@@ -43,3 +43,11 @@
 .btn-social {
     @apply flex items-center justify-center gap-2 w-full px-4 py-2.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors text-sm font-medium text-slate-700;
 }
+
+.auth-status {
+    @apply mt-4 text-center text-sm text-slate-500;
+}
+
+.auth-error {
+    @apply mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-600;
+}

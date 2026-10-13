@@ -12,9 +12,11 @@ import {
     ArrowRight,
     ArrowLeft // 2. Thêm icon ArrowLeft
 } from 'lucide-react';
+import GoogleLoginButton from '../../components/GoogleLoginButton';
+import { loginWithGoogle } from '../../services/authService';
 import '../../style/register.css';
 
-export default function Register({ onNavigateToLogin }) {
+export default function Register({ onNavigateToLogin, onLoginSuccess }) {
     const navigate = useNavigate(); // 3. Khởi tạo điều hướng
 
     const [role, setRole] = useState('candidate');
@@ -25,6 +27,28 @@ export default function Register({ onNavigateToLogin }) {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [agreed, setAgreed] = useState(false);
+    const [error, setError] = useState('');
+    const [googleLoading, setGoogleLoading] = useState(false);
+
+    // Đăng ký bằng Google theo vai trò đang chọn (ứng viên / nhà tuyển dụng).
+    // Nếu email đã có tài khoản thì đăng nhập vào tài khoản đó.
+    const handleGoogleCredential = async (credential) => {
+        if (googleLoading) return;
+
+        setError('');
+        setGoogleLoading(true);
+
+        try {
+            const user = await loginWithGoogle(credential, role);
+            if (onLoginSuccess) {
+                onLoginSuccess(user);
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setGoogleLoading(false);
+        }
+    };
 
     const hasMinLength = password.length >= 8;
     const hasUppercase = /[A-Z]/.test(password);
@@ -286,15 +310,14 @@ export default function Register({ onNavigateToLogin }) {
 
                     {/* Nút Mạng xã hội */}
                     <div className="grid grid-cols-2 gap-3">
-                        <button type="button" className="btn-register-social">
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                                <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z" />
-                                <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
-                                <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12.3 0 15s.7 5.3 1.9 7.7l3.7-2.9c-.3-.7-.5-1.5-.5-2.3z" />
-                                <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 22.3 12 23z" />
-                            </svg>
-                            <span>Google</span>
-                        </button>
+                        <GoogleLoginButton
+                            text="signup_with"
+                            size="medium"
+                            fallbackClassName="btn-register-social"
+                            iconClassName="w-3.5 h-3.5"
+                            onCredential={handleGoogleCredential}
+                            onError={setError}
+                        />
                         <button type="button" className="btn-register-social">
                             <svg className="w-3.5 h-3.5 fill-blue-600" viewBox="0 0 24 24">
                                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
@@ -302,6 +325,14 @@ export default function Register({ onNavigateToLogin }) {
                             <span>Facebook</span>
                         </button>
                     </div>
+
+                    {/* Trạng thái đăng ký bằng Google */}
+                    {googleLoading && (
+                        <p className="register-status">Đang đăng ký với Google…</p>
+                    )}
+                    {error && (
+                        <p className="register-error" role="alert">{error}</p>
+                    )}
 
                     {/* Chuyển qua Đăng nhập */}
                     <p className="text-center text-xs text-slate-500 mt-4">
