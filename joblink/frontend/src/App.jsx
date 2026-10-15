@@ -37,6 +37,7 @@ export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     // Người dùng đang đăng nhập (id, email, role, fullName, avatar) lấy từ backend
     const [currentUser, setCurrentUser] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
 
     // --- STATE ỨNG DỤNG CHÍNH ---
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -56,16 +57,33 @@ export default function App() {
 
     // Khôi phục phiên đăng nhập (cookie session) khi tải lại trang
     useEffect(() => {
-        getCurrentUser()
-            .then((user) => {
-                if (user) {
+        let cancelled = false;
+            async function restoreSession() {
+            try {
+                const user = await getCurrentUser();
+
+                if (!cancelled) {
                     setCurrentUser(user);
-                    setIsAuthenticated(true);
+                    setIsAuthenticated(Boolean(user));
                 }
-            })
-            .catch(() => {
-                // Backend chưa chạy: coi như chưa đăng nhập
-            });
+            } catch (error) {
+                if (!cancelled) {
+                    setCurrentUser(null);
+                    setIsAuthenticated(false);
+                    console.error("Không kiểm tra được phiên đăng nhập:", error);
+                }
+            } finally {
+                if (!cancelled) {
+                    setAuthLoading(false);
+                }
+            }
+        }
+
+        restoreSession();
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     // --- HANDLERS ---
@@ -82,11 +100,26 @@ export default function App() {
 
     // Hàm gọi khi đăng nhập thành công (user: thông tin backend trả về, nếu có)
     function handleLoginSuccess(user) {
-        if (user) {
-            setCurrentUser(user);
+        if (!user?.id || !user?.role) {
+            throw new Error("Chưa nhận được thông tin đăng nhập hợp lệ.");
         }
+
+        setCurrentUser(user);
         setIsAuthenticated(true);
-        navigate("/discover"); // Đăng nhập xong đẩy về trang chủ
+
+        const returnTo = location.state?.returnTo;
+
+        // Chỉ nhận đường dẫn chi tiết việc làm trong ứng dụng.
+        const destination =
+            typeof returnTo === "string" &&
+            /^\/jobs\/\d+$/.test(returnTo) ? returnTo : "/discover";
+
+        navigate(destination, { replace: true });
+    }
+    // xử lý hết hạn phiên
+    function handleSessionExpired() {
+        setCurrentUser(null);
+        setIsAuthenticated(false);
     }
 
     async function handleLogout() {

@@ -1,9 +1,10 @@
 package group7.joblink.controller;
 
+import group7.joblink.dto.response.ApplyResponse;
 import group7.joblink.service.ApplicationService;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
+
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -12,27 +13,22 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/jobs")
-@Profile("local")
-@ConditionalOnProperty(
-    name = "app.demo-applications.enabled",
-    havingValue = "true"
-)
 public class ApplicationController {
 
-    private final ApplicationService service;
-    private final int demoCandidateId;
+    private final ApplicationService applicationService;
 
-    public ApplicationController(
-            ApplicationService service,
-            @Value("${app.demo-candidate-id}") int demoCandidateId) {
-        this.service = service;
-        this.demoCandidateId = demoCandidateId;
+    public ApplicationController(ApplicationService applicationService) {
+        this.applicationService = applicationService;
     }
 
     @PostMapping("/{jobId}/applications")
-    public Map<String, Object> apply(
-            @PathVariable("jobId") int jobId) {
-        return service.apply(demoCandidateId, jobId);
+    public ApplyResponse apply(
+            @PathVariable("jobId") Integer jobId,
+            HttpServletRequest request) {
+
+        Integer candidateId = CurrentUser.requireId(request);
+
+        return applicationService.apply(candidateId, jobId);
     }
 
     @ExceptionHandler(ResponseStatusException.class)

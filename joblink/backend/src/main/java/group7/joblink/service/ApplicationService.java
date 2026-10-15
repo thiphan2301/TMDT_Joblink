@@ -1,142 +1,188 @@
 package group7.joblink.service;
 
-import group7.joblink.repository.ApplicationRepository;
+import group7.joblink.dto.response.ApplyResponse;
+import group7.joblink.entity.*;
+import group7.joblink.repository.*;
+
+import jakarta.persistence.EntityManager;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Map;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 @Service
 public class ApplicationService {
 
     private static final int APPLICATION_COST = 5;
 
-    private final ApplicationRepository repository;
+    private static final ZoneId VIETNAM_ZONE =
+            ZoneId.of("Asia/Ho_Chi_Minh");
 
-    public ApplicationService(ApplicationRepository repository) {
-        this.repository = repository;
+    private final UserRepository userRepository;
+    private final CandidateProfileRepository candidateProfileRepository;
+    private final JobRepository jobRepository;
+    private final CvRepository cvRepository;
+    private final ApplicationRepository applicationRepository;
+    private final TokenWalletRepository tokenWalletRepository;
+    private final TokenTransactionRepository tokenTransactionRepository;
+    private final ApplicationStatusHistoryRepository historyRepository;
+    private final EntityManager entityManager;
+
+    public ApplicationService(
+            UserRepository userRepository,
+            CandidateProfileRepository candidateProfileRepository,
+            JobRepository jobRepository,
+            CvRepository cvRepository,
+            ApplicationRepository applicationRepository,
+            TokenWalletRepository tokenWalletRepository,
+            TokenTransactionRepository tokenTransactionRepository,
+            ApplicationStatusHistoryRepository historyRepository,
+            EntityManager entityManager) {
+
+        this.userRepository = userRepository;
+        this.candidateProfileRepository = candidateProfileRepository;
+        this.jobRepository = jobRepository;
+        this.cvRepository = cvRepository;
+        this.applicationRepository = applicationRepository;
+        this.tokenWalletRepository = tokenWalletRepository;
+        this.tokenTransactionRepository = tokenTransactionRepository;
+        this.historyRepository = historyRepository;
+        this.entityManager = entityManager;
     }
 
     @Transactional
-    public Map<String, Object> apply(int candidateId, int jobId) {
-        var users = repository.lockCandidate(candidateId);
+    public ApplyResponse apply(Integer candidateId, Integer jobId) {
 
-        if (users.isEmpty()) {
-            throw error(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản ứng viên.");
-        }
+        // 1. Kiểm tra tài khoản và khóa trong transaction.
+        User user = userRepository.findForUpdate(candidateId)
+                .orElseThrow(() -> error(
+                        HttpStatus.UNAUTHORIZED,
+                        "Phiên đăng nhập không còn hợp lệ."
+                ));
 
-        var user = users.getFirst();
-
-        if (!"candidate".equals(user.get("role"))) {
+        if (user.getRole() != User.Role.candidate) {
             throw error(
-                HttpStatus.FORBIDDEN,
-                "Chỉ tài khoản ứng viên được ứng tuyển."
+                    HttpStatus.FORBIDDEN,
+                    "Chỉ tài khoản ứng viên được ứng tuyển."
             );
         }
 
-        if (!"active".equals(user.get("status"))) {
-            throw error(HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa.");
-        }
-
-        // Khóa ví trong suốt transaction để tránh trừ tiền đồng thời.
-        var wallets = repository.lockWallet(candidateId);
-
-        if (wallets.isEmpty()) {
+        if (user.getStatus() != User.Status.active) {
             throw error(
-                HttpStatus.CONFLICT,
-                "Tài khoản chưa có ví token."
+                    HttpStatus.FORBIDDEN,
+                    "Tài khoản của bạn đã bị khóa."
             );
         }
 
-        int balance = ((Number) wallets.getFirst().get("balance")).intValue();
+        // 2. Khóa ví để các yêu cầu đồng thời không dùng chung số dư cũ.
+        TokenWallet wallet = tokenWalletRepository
+                .findForUpdate(candidateId)
+                .orElseThrow(() -> error(
+                        HttpStatus.CONFLICT,
+                        "Tài khoản chưa có ví token."
+                ));
 
-        var jobs = repository.lockJob(jobId);
+        // 3. Khóa tin để trạng thái không đổi giữa lúc kiểm tra và lưu đơn.
+        Job job = jobRepository.findForUpdate(jobId)
+                .orElseThrow(() -> error(
+                        HttpStatus.NOT_FOUND,
+                        "Không tìm thấy việc làm."
+                ));
 
-        if (jobs.isEmpty()) {
-            throw error(HttpStatus.NOT_FOUND, "Không tìm thấy việc làm.");
-        }
-
-        var existing = repository.findExistingApplication(candidateId, jobId);
-
-        // Cho phép bấm lại hoặc gửi lại yêu cầu mà không trừ thêm.
-        if (!existing.isEmpty()) {
-            return Map.of(
-                "alreadyApplied", true,
-                "applicationId", existing.getFirst().get("id"),
-                "balance", balance,
-                "cost", 0,
-                "message", "Bạn đã ứng tuyển công việc này. Không trừ thêm token."
-            );
-        }
-
-        var job = jobs.getFirst();
-
-        if (!"open".equals(job.get("status"))
-                || !asBoolean(job.get("withinDeadline"))) {
-            throw error(
-                HttpStatus.CONFLICT,
-                "Công việc đã đóng hoặc hết hạn nhận hồ sơ."
-            );
-        }
-
-        var cvs = repository.findDefaultCv(candidateId);
-
-        if (cvs.isEmpty()) {
-            throw error(
-                HttpStatus.CONFLICT,
-                "Bạn cần tải CV và chọn CV mặc định trước khi ứng tuyển."
-            );
-        }
-
-        if (balance < APPLICATION_COST) {
-            throw error(
-                HttpStatus.CONFLICT,
-                "Không đủ token. Bạn còn " + balance
-                    + " token, cần " + APPLICATION_COST
-                    + " token để ứng tuyển."
-            );
-        }
-
-        int cvId = ((Number) cvs.getFirst().get("id")).intValue();
-
-        int applicationId = repository.insertApplication(
-            candidateId, jobId, cvId
+        // 4. Đã ứng tuyển thì trả lại đơn cũ, không trừ thêm token.
+        var existing = applicationRepository.findExistingForUpdate(
+                candidateId, jobId
         );
 
-        repository.insertTokenSpend(
-            candidateId, applicationId, APPLICATION_COST
+        if (existing.isPresent()) {
+            return new ApplyResponse(
+                    true,
+                    existing.get().getId(),
+                    wallet.getBalance(),
+                    0,
+                    "Bạn đã ứng tuyển công việc này. Không trừ thêm token."
+            );
+        }
+
+        // 5. Kiểm tra tin còn nhận hồ sơ; hạn hôm nay vẫn được ứng tuyển.
+        LocalDate today = LocalDate.now(VIETNAM_ZONE);
+
+        boolean expired = job.getDeadline() != null
+                && job.getDeadline().isBefore(today);
+
+        if (job.getStatus() != Job.Status.open || expired) {
+            throw error(
+                    HttpStatus.CONFLICT,
+                    "Công việc đã đóng hoặc hết hạn nhận hồ sơ."
+            );
+        }
+
+        CandidateProfile candidate = candidateProfileRepository
+                .findById(candidateId)
+                .orElseThrow(() -> error(
+                        HttpStatus.CONFLICT,
+                        "Bạn cần hoàn thiện hồ sơ ứng viên trước khi ứng tuyển."
+                ));
+
+        // 6. Chỉ lấy CV mặc định thuộc đúng ứng viên này.
+        Cv cv = cvRepository.findDefaultForUpdate(candidateId)
+                .orElseThrow(() -> error(
+                        HttpStatus.CONFLICT,
+                        "Bạn cần tải CV và chọn CV mặc định trước khi ứng tuyển."
+                ));
+
+        if (wallet.getBalance() < APPLICATION_COST) {
+            throw error(
+                    HttpStatus.CONFLICT,
+                    "Không đủ token. Bạn còn " + wallet.getBalance()
+                            + " token, cần " + APPLICATION_COST
+                            + " token để ứng tuyển."
+            );
+        }
+
+        // 7. Lưu đơn để có applicationId dùng cho giao dịch và lịch sử.
+        Application application = applicationRepository.saveAndFlush(
+                new Application(job, candidate, cv)
         );
 
-        repository.insertInitialHistory(applicationId, candidateId);
+        // 8. Ghi giao dịch -5 token.
+        // Trigger database tự cập nhật ví; không trừ số dư thêm ở Java.
+        tokenTransactionRepository.saveAndFlush(
+                TokenTransaction.forApplication(
+                        wallet,
+                        application.getId(),
+                        APPLICATION_COST
+                )
+        );
 
-        int remaining = repository.getBalance(candidateId);
+        // 9. Ghi trạng thái ban đầu.
+        historyRepository.saveAndFlush(
+                new ApplicationStatusHistory(application, user)
+        );
 
-        return Map.of(
-            "alreadyApplied", false,
-            "applicationId", applicationId,
-            "balance", remaining,
-            "cost", APPLICATION_COST,
-            "message", "Ứng tuyển thành công! Đã trừ "
-                + APPLICATION_COST + " token. Bạn còn "
-                + remaining + " token."
+        // 10. Đọc lại vì trigger cập nhật DB, entity trong bộ nhớ còn số dư cũ.
+        entityManager.refresh(wallet);
+
+        int remaining = wallet.getBalance();
+
+        return new ApplyResponse(
+                false,
+                application.getId(),
+                remaining,
+                APPLICATION_COST,
+                "Ứng tuyển thành công! Đã trừ " + APPLICATION_COST
+                        + " token. Bạn còn " + remaining + " token."
         );
     }
 
-    private boolean asBoolean(Object value) {
-        if (value instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
+    private static ResponseStatusException error(
+            HttpStatus status,
+            String message) {
 
-        if (value instanceof Number numberValue) {
-            return numberValue.intValue() != 0;
-        }
-
-        return "1".equals(String.valueOf(value));
-    }
-
-    private ResponseStatusException error(HttpStatus status, String message) {
         return new ResponseStatusException(status, message);
     }
 }
