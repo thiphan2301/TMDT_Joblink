@@ -13,6 +13,15 @@ import JobsPage from "./pages/candidate/JobsPage";
 import JobDetailPage from "./pages/candidate/JobDetailPage";
 import ProfilePage from "./pages/candidate/ProfilePage";
 
+// Admin Components (khu vực quản trị /admin)
+import AdminLayout from "./components/admin/AdminLayout.jsx";
+import AdminOverview from "./pages/admin/AdminOverview.jsx";
+import AdminUsers from "./pages/admin/AdminUsers.jsx";
+import AdminJobs from "./pages/admin/AdminJobs.jsx";
+import AdminJobEdit from "./pages/admin/AdminJobEdit.jsx";
+import AdminReports from "./pages/admin/AdminReports.jsx";
+import AdminPackages from "./pages/admin/AdminPackages.jsx";
+
 // Services
 import { getCurrentUser, logout } from "./services/authService";
 
@@ -94,11 +103,14 @@ export default function App() {
     // --- KIỂM TRA ROUTE HIỆN TẠI ---
     // Nếu đang ở trang login hoặc register thì không hiển thị Header và Sidebar
     const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+    // Khu vực admin có Header/Sidebar riêng (trong AdminLayout) nên cũng ẩn
+    // Header và Sidebar ứng viên, giống trang auth.
+    const isAdminPage = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
 
     return (
         <>
-            {/* Chỉ hiển thị Header & Sidebar khi KHÔNG PHẢI ở trang đăng nhập/đăng ký */}
-            {!isAuthPage && (
+            {/* Chỉ hiển thị Header & Sidebar khi KHÔNG PHẢI ở trang đăng nhập/đăng ký và KHÔNG ở khu vực admin */}
+            {!isAuthPage && !isAdminPage && (
                 <>
                     <Header
                         onOpenSidebar={() => setSidebarOpen(true)}
@@ -161,6 +173,19 @@ export default function App() {
                             />
                         }
                     />
+
+                    {/* --- KHU VỰC ADMIN (không cần đăng nhập để xem thử: dữ liệu mẫu
+                         tự hiện khi backend chưa trả dữ liệu; muốn chặn theo role thì
+                         bọc thêm <Route element={<AdminRoute />}> ở ngoài, xem
+                         components/admin/AdminRoute.jsx) --- */}
+                    <Route path="/admin" element={<AdminLayout />}>
+                        <Route index element={<AdminOverview />} />
+                        <Route path="users" element={<AdminUsers />} />
+                        <Route path="jobs" element={<AdminJobs />} />
+                        <Route path="jobs/:id/edit" element={<AdminJobEdit />} />
+                        <Route path="reports" element={<AdminReports />} />
+                        <Route path="packages" element={<AdminPackages />} />
+                    </Route>
 
                     <Route
                         path="*"
