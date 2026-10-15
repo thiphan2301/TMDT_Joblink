@@ -37,7 +37,7 @@ export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     // Người dùng đang đăng nhập (id, email, role, fullName, avatar) lấy từ backend
     const [currentUser, setCurrentUser] = useState(null);
-    const [authLoading, setAuthLoading] = useState(true);
+    const [, setAuthLoading] = useState(true);
 
     // --- STATE ỨNG DỤNG CHÍNH ---
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -117,11 +117,6 @@ export default function App() {
         navigate(destination, { replace: true });
     }
     // xử lý hết hạn phiên
-    function handleSessionExpired() {
-        setCurrentUser(null);
-        setIsAuthenticated(false);
-    }
-
     async function handleLogout() {
         try {
             await logout();
