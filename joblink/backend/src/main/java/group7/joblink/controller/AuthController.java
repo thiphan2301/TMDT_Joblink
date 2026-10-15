@@ -15,7 +15,7 @@ import java.util.Map;
 
 // Đăng nhập lưu bằng HttpSession: sau khi đăng nhập, server giữ id người dùng
 // trong session (cookie JSESSIONID). Controller khác lấy người dùng hiện tại qua
-// session.getAttribute(AuthService.SESSION_USER_ID).
+// CurrentUser.requireId(request).
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -48,23 +48,13 @@ public class AuthController {
 
     @GetMapping("/me")
     public AuthUserResponse getCurrentUser(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        Object userId = session == null
-                ? null
-                : session.getAttribute(AuthService.SESSION_USER_ID);
-
-        if (!(userId instanceof Integer id)) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Bạn chưa đăng nhập."
-            );
-        }
+        Integer userId = CurrentUser.requireId(request);
 
         try {
-            return authService.getCurrentUser(id);
+            return authService.getCurrentUser(userId);
         } catch (ResponseStatusException exception) {
             // Tài khoản bị xóa hoặc bị khóa: hủy phiên hiện tại.
-            session.invalidate();
+            request.getSession().invalidate();
             throw exception;
         }
     }
