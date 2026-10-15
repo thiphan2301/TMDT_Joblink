@@ -11,10 +11,23 @@ import DiscoverJobs from "./pages/candidate/DiscoverJobs";
 import SidebarCandidate from "./components/SidebarCandidate";
 import JobsPage from "./pages/candidate/JobsPage";
 import JobDetailPage from "./pages/candidate/JobDetailPage";
+import ProfilePage from "./pages/candidate/ProfilePage";
+
+// Services
+import { getCurrentUser, logout } from "./services/authService";
+
+// Trang ứng với URL: giữ đúng tiêu đề Header và mục sáng trên Sidebar
+// khi tải lại trang hoặc mở link trực tiếp.
+const ROUTE_PAGES = {
+    "/discover": { id: "discover", label: "Khám phá việc làm" },
+    "/profile": { id: "profile", label: "Hồ sơ của tôi" },
+};
 
 export default function App() {
     // --- STATE ĐĂNG NHẬP ---
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    // Người dùng đang đăng nhập (id, email, role, fullName, avatar) lấy từ backend
+    const [currentUser, setCurrentUser] = useState(null);
 
     // --- STATE ỨNG DỤNG CHÍNH ---
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -25,11 +38,26 @@ export default function App() {
 
     const navigate = useNavigate();
     const location = useLocation();
+    const currentPage = ROUTE_PAGES[location.pathname] || selectedPage;
 
     // Scroll to top khi đổi route
     useEffect(() => {
         window.scrollTo(0, 0);
     }, [location.pathname]);
+
+    // Khôi phục phiên đăng nhập (cookie session) khi tải lại trang
+    useEffect(() => {
+        getCurrentUser()
+            .then((user) => {
+                if (user) {
+                    setCurrentUser(user);
+                    setIsAuthenticated(true);
+                }
+            })
+            .catch(() => {
+                // Backend chưa chạy: coi như chưa đăng nhập
+            });
+    }, []);
 
     // --- HANDLERS ---
     function handleSelectPage(item) {
@@ -43,10 +71,24 @@ export default function App() {
         }
     }
 
-    // Hàm gọi khi đăng nhập thành công
-    function handleLoginSuccess() {
+    // Hàm gọi khi đăng nhập thành công (user: thông tin backend trả về, nếu có)
+    function handleLoginSuccess(user) {
+        if (user) {
+            setCurrentUser(user);
+        }
         setIsAuthenticated(true);
         navigate("/discover"); // Đăng nhập xong đẩy về trang chủ
+    }
+
+    async function handleLogout() {
+        try {
+            await logout();
+        } catch {
+            // Vẫn đăng xuất ở giao diện kể cả khi không gọi được backend
+        }
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        navigate("/login");
     }
 
     // --- KIỂM TRA ROUTE HIỆN TẠI ---
@@ -60,14 +102,18 @@ export default function App() {
                 <>
                     <Header
                         onOpenSidebar={() => setSidebarOpen(true)}
-                        pageTitle={selectedPage.label}
+                        pageTitle={currentPage.label}
                         isAuthenticated={isAuthenticated} // Truyền state này xuống Header để Header biết hiển thị nút "Đăng nhập" hay "Avatar user"
+                        userName={currentUser?.fullName || currentUser?.email}
+                        userRole={currentUser?.role}
+                        avatarUrl={currentUser?.avatar}
+                        onLogout={handleLogout}
                     />
 
                     <SidebarCandidate
                         isOpen={sidebarOpen}
                         onClose={() => setSidebarOpen(false)}
-                        activeItem={selectedPage.id}
+                        activeItem={currentPage.id}
                         onSelect={handleSelectPage}
                     />
                 </>
@@ -90,6 +136,7 @@ export default function App() {
                         element={
                             <Register
                                 onNavigateToLogin={() => navigate('/login')}
+                                onLoginSuccess={handleLoginSuccess}
                             />
                         }
                     />
@@ -99,6 +146,21 @@ export default function App() {
                     <Route path="/discover" element={<DiscoverJobs />} />
                     <Route path="/jobs" element={<JobsPage />} />
                     <Route path="/jobs/:id" element={<JobDetailPage />} />
+                    <Route
+                        path="/profile"
+                        element={
+                            <ProfilePage
+                                // Lưu xong thì cập nhật tên, ảnh trên Header
+                                onProfileUpdated={(profile) =>
+                                    setCurrentUser((user) =>
+                                        user
+                                            ? { ...user, fullName: profile.fullName, avatar: profile.avatar }
+                                            : user
+                                    )
+                                }
+                            />
+                        }
+                    />
 
                     <Route
                         path="*"

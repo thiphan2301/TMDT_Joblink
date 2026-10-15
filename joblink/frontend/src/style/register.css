@@ -35,3 +35,11 @@
 .btn-register-social {
     @apply flex items-center justify-center gap-2 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors text-xs font-medium text-slate-700;
 }
+
+.register-status {
+    @apply mt-3 text-center text-xs text-slate-500;
+}
+
+.register-error {
+    @apply mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600;
+}

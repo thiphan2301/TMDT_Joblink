@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router';
 import {
     ShieldCheck, CheckCircle2, Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft
 } from 'lucide-react';
+import GoogleLoginButton from '../../components/GoogleLoginButton';
+import { loginWithGoogle } from '../../services/authService';
 import '../../style/login.css';
 
 export default function Login({ onNavigateToRegister, onLoginSuccess }) {
@@ -13,6 +15,22 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
     const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
+
+    const handleGoogleCredential = async (credential) => {
+        if (googleLoading) return;
+        setError('');
+        setGoogleLoading(true);
+        try {
+            const user = await loginWithGoogle(credential);
+            if (onLoginSuccess) onLoginSuccess(user);
+            else navigate('/dashboard');
+        } catch (err) {
+            setError(err.message || 'Đăng nhập Google thất bại');
+        } finally {
+            setGoogleLoading(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -22,6 +40,7 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
         try {
 
             const response = await fetch('/api/auth/login', {
+                credentials: 'include',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -36,9 +55,13 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
             if (response.ok) {
                 if (rememberMe) {
                     localStorage.setItem('token', data.token);
+                    sessionStorage.removeItem('token');
+                    sessionStorage.removeItem('user');
                     localStorage.setItem('user', JSON.stringify(data.user));
                 } else {
                     sessionStorage.setItem('token', data.token);
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
                     sessionStorage.setItem('user', JSON.stringify(data.user));
                 }
 
@@ -154,6 +177,25 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
                             {isLoading ? 'Đang xử lý...' : 'Đăng nhập ngay'}
                         </button>
                     </form>
+
+                    <div className="mt-8 mb-6 flex items-center">
+                        <div className="flex-grow border-t border-slate-200"></div>
+                        <span className="mx-4 text-xs text-slate-400">HOẶC ĐĂNG NHẬP VỚI</span>
+                        <div className="flex-grow border-t border-slate-200"></div>
+                    </div>
+                    <div className="flex justify-center">
+                        <GoogleLoginButton
+                            text="signin_with"
+                            size="large"
+                            fallbackClassName="btn-social"
+                            iconClassName="w-4 h-4"
+                            onCredential={handleGoogleCredential}
+                            onError={setError}
+                        />
+                    </div>
+                    {googleLoading && (
+                        <p className="text-sm mt-3 text-center text-slate-500">Đang đăng nhập với Google...</p>
+                    )}
                 </div>
             </div>
         </div>

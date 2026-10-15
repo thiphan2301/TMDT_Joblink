@@ -1,11 +1,21 @@
 import { useNavigate } from "react-router";
 import "../style/HeaderCandidate.css";
 
+// Nhãn hiển thị theo vai trò trong database
+const ROLE_LABELS = {
+  candidate: "Ứng viên",
+  employer: "Nhà tuyển dụng",
+  admin: "Quản trị viên",
+};
+
 function Header({
                            onOpenSidebar,
                            pageTitle,
                            isAuthenticated, // Nhận prop này từ App.jsx
                            userName = "Nguyễn Minh Anh",
+                           userRole = "candidate",
+                           avatarUrl, // Ảnh đại diện (VD: ảnh tài khoản Google)
+                           onLogout,
                          }) {
   const navigate = useNavigate(); // Dùng để chuyển trang
 
@@ -47,14 +57,33 @@ function Header({
                 <span className="header-notification">Thông báo</span>
 
                 <div className="header-account">
-                  <div className="header-avatar" aria-hidden="true">
-                    {initials}
-                  </div>
+                  {avatarUrl ? (
+                      <img
+                          className="header-avatar"
+                          src={avatarUrl}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                      />
+                  ) : (
+                      <div className="header-avatar" aria-hidden="true">
+                        {initials}
+                      </div>
+                  )}
 
                   <div className="header-user-info">
                     <strong>{userName}</strong>
-                    <span>Ứng viên</span>
+                    <span>{ROLE_LABELS[userRole] || "Ứng viên"}</span>
                   </div>
+
+                  {onLogout && (
+                      <button
+                          type="button"
+                          className="header-logout"
+                          onClick={onLogout}
+                      >
+                        Đăng xuất
+                      </button>
+                  )}
                 </div>
               </>
           ) : (
