@@ -23,67 +23,36 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final OtpService otpService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService
+            JwtService jwtService,
+            OtpService otpService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.otpService = otpService;
     }
 
-    // ================= ĐĂNG KÝ =================
-
+    // Đăng ký: chỉ gửi OTP
     public RegisterResponse register(RegisterRequest request) {
-
-        String email = request.email()
-                .trim()
-                .toLowerCase(Locale.ROOT);
-
-        // Kiểm tra email đã tồn tại
-        if (userRepository.existsByEmail(email)) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Email này đã được đăng ký"
-            );
-        }
-
-        String role = request.role()
-                .trim()
-                .toLowerCase(Locale.ROOT);
-
-        // Chỉ cho phép đăng ký ứng viên hoặc nhà tuyển dụng
-        if (!role.equals("candidate")
-                && !role.equals("employer")) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Vai trò đăng ký không hợp lệ"
-            );
-        }
-
-        // Tạo tài khoản mới
-        User user = new User();
-        user.setEmail(email);
-
-        // Mã hóa mật khẩu trước khi lưu database
-        user.setPasswordHash(
-                passwordEncoder.encode(request.password())
-        );
-
-        user.setRole(role);
-        user.setStatus("active");
-
-        userRepository.save(user);
-
-        return new RegisterResponse(
-                "Đăng ký thành công! Vui lòng đăng nhập."
-        );
+        return otpService.startRegistration(request);
     }
 
-    // ================= ĐĂNG NHẬP =================
+    // Kiểm tra OTP và tạo tài khoản
+    public RegisterResponse verifyOtp(String email, String otp) {
+        return otpService.verify(email, otp);
+    }
 
+    // Gửi lại OTP
+    public RegisterResponse resendOtp(String email) {
+        return otpService.resend(email);
+    }
+
+    // Đăng nhập bình thường
     public LoginResponse login(LoginRequest request) {
 
         String email = request.email()
@@ -96,7 +65,6 @@ public class AuthService {
                         "Email hoặc mật khẩu không chính xác"
                 ));
 
-        // Kiểm tra trạng thái tài khoản
         if (!"active".equalsIgnoreCase(user.getStatus())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -104,7 +72,6 @@ public class AuthService {
             );
         }
 
-        // Kiểm tra mật khẩu BCrypt
         if (!passwordEncoder.matches(
                 request.password(),
                 user.getPasswordHash()
@@ -115,7 +82,6 @@ public class AuthService {
             );
         }
 
-        // Tạo JWT khi đăng nhập thành công
         String token = jwtService.generateToken(user);
 
         UserResponse userResponse = new UserResponse(

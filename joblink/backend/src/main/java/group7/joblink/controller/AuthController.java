@@ -5,11 +5,12 @@ import group7.joblink.dto.LoginRequest;
 import group7.joblink.dto.LoginResponse;
 import group7.joblink.dto.RegisterRequest;
 import group7.joblink.dto.RegisterResponse;
+import group7.joblink.dto.VerifyOtpRequest;
+import group7.joblink.dto.ResendOtpRequest;
 import group7.joblink.service.AuthService;
 
 import jakarta.validation.Valid;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,27 +24,46 @@ public class AuthController {
         this.authService = authService;
     }
 
-    // POST /api/auth/register
+    // Gửi OTP tới email đăng ký
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(
             @Valid @RequestBody RegisterRequest request
     ) {
-        RegisterResponse response =
-                authService.register(request);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(response);
+        return ResponseEntity.ok(
+                authService.register(request)
+        );
     }
 
-    // POST /api/auth/login
+    // Xác thực OTP rồi tạo tài khoản
+    @PostMapping("/verify-otp")
+    public ResponseEntity<RegisterResponse> verifyOtp(
+            @Valid @RequestBody VerifyOtpRequest request
+    ) {
+        return ResponseEntity.ok(
+                authService.verifyOtp(
+                        request.email(),
+                        request.otp()
+                )
+        );
+    }
+
+    // Gửi lại OTP
+    @PostMapping("/resend-otp")
+    public ResponseEntity<RegisterResponse> resendOtp(
+            @Valid @RequestBody ResendOtpRequest request
+    ) {
+        return ResponseEntity.ok(
+                authService.resendOtp(request.email())
+        );
+    }
+
+    // Đăng nhập
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request
     ) {
-        LoginResponse response =
-                authService.login(request);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(
+                authService.login(request)
+        );
     }
 }
