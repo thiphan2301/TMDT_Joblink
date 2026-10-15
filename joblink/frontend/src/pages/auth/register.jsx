@@ -35,6 +35,12 @@ export default function Register({ onNavigateToLogin, onLoginSuccess }) {
     const handleGoogleCredential = async (credential) => {
         if (googleLoading) return;
 
+        // Giống form email: phải đồng ý điều khoản trước khi tạo tài khoản
+        if (!agreed) {
+            setError('Vui lòng đồng ý với Điều khoản sử dụng và Chính sách bảo mật trước khi đăng ký bằng Google.');
+            return;
+        }
+
         setError('');
         setGoogleLoading(true);
 

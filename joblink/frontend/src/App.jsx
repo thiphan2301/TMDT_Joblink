@@ -11,9 +11,17 @@ import DiscoverJobs from "./pages/candidate/DiscoverJobs";
 import SidebarCandidate from "./components/SidebarCandidate";
 import JobsPage from "./pages/candidate/JobsPage";
 import JobDetailPage from "./pages/candidate/JobDetailPage";
+import ProfilePage from "./pages/candidate/ProfilePage";
 
 // Services
 import { getCurrentUser, logout } from "./services/authService";
+
+// Trang ứng với URL: giữ đúng tiêu đề Header và mục sáng trên Sidebar
+// khi tải lại trang hoặc mở link trực tiếp.
+const ROUTE_PAGES = {
+    "/discover": { id: "discover", label: "Khám phá việc làm" },
+    "/profile": { id: "profile", label: "Hồ sơ của tôi" },
+};
 
 export default function App() {
     // --- STATE ĐĂNG NHẬP ---
@@ -30,6 +38,7 @@ export default function App() {
 
     const navigate = useNavigate();
     const location = useLocation();
+    const currentPage = ROUTE_PAGES[location.pathname] || selectedPage;
 
     // Scroll to top khi đổi route
     useEffect(() => {
@@ -93,7 +102,7 @@ export default function App() {
                 <>
                     <Header
                         onOpenSidebar={() => setSidebarOpen(true)}
-                        pageTitle={selectedPage.label}
+                        pageTitle={currentPage.label}
                         isAuthenticated={isAuthenticated} // Truyền state này xuống Header để Header biết hiển thị nút "Đăng nhập" hay "Avatar user"
                         userName={currentUser?.fullName || currentUser?.email}
                         userRole={currentUser?.role}
@@ -104,7 +113,7 @@ export default function App() {
                     <SidebarCandidate
                         isOpen={sidebarOpen}
                         onClose={() => setSidebarOpen(false)}
-                        activeItem={selectedPage.id}
+                        activeItem={currentPage.id}
                         onSelect={handleSelectPage}
                     />
                 </>
@@ -137,6 +146,21 @@ export default function App() {
                     <Route path="/discover" element={<DiscoverJobs />} />
                     <Route path="/jobs" element={<JobsPage />} />
                     <Route path="/jobs/:id" element={<JobDetailPage />} />
+                    <Route
+                        path="/profile"
+                        element={
+                            <ProfilePage
+                                // Lưu xong thì cập nhật tên, ảnh trên Header
+                                onProfileUpdated={(profile) =>
+                                    setCurrentUser((user) =>
+                                        user
+                                            ? { ...user, fullName: profile.fullName, avatar: profile.avatar }
+                                            : user
+                                    )
+                                }
+                            />
+                        }
+                    />
 
                     <Route
                         path="*"
