@@ -34,13 +34,16 @@ public class JwtService {
     }
 
     public String generateToken(User user) {
+
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + expirationMs);
+        Date expiry = new Date(
+                now.getTime() + expirationMs
+        );
 
         return JWT.create()
                 .withSubject(user.getEmail())
                 .withClaim("userId", user.getId())
-                .withClaim("role", user.getRole())
+                .withClaim("role", user.getRole().name())
                 .withIssuedAt(now)
                 .withExpiresAt(expiry)
                 .sign(algorithm);

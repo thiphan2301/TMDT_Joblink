@@ -243,8 +243,11 @@ public class OtpService {
 
         user.setEmail(email);
         user.setPasswordHash(pending.getPasswordHash());
-        user.setRole(pending.getRole());
-        user.setStatus("active");
+        user.setRole(
+                User.Role.valueOf(pending.getRole())
+        );
+
+        user.setStatus(User.Status.active);
 
         userRepository.saveAndFlush(user);
 
