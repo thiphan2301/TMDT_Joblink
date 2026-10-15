@@ -7,6 +7,8 @@ import group7.joblink.entity.User;
 import group7.joblink.repository.CandidateProfileRepository;
 import group7.joblink.repository.SocialAccountRepository;
 import group7.joblink.repository.UserRepository;
+import group7.joblink.security.JwtService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import group7.joblink.service.GoogleTokenVerifier.GoogleProfile;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,9 @@ class AuthServiceTest {
     private static final String TOKEN = "google-id-token";
 
     private GoogleTokenVerifier googleTokenVerifier;
+    private PasswordEncoder passwordEncoder;
+    private JwtService jwtService;
+    private OtpService otpService;
     private UserRepository userRepository;
     private CandidateProfileRepository candidateProfileRepository;
     private SocialAccountRepository socialAccountRepository;
@@ -36,18 +41,27 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         googleTokenVerifier = mock(GoogleTokenVerifier.class);
+        passwordEncoder = mock(PasswordEncoder.class);
+        jwtService = mock(JwtService.class);
+        otpService = mock(OtpService.class);
         userRepository = mock(UserRepository.class);
         candidateProfileRepository = mock(CandidateProfileRepository.class);
         socialAccountRepository = mock(SocialAccountRepository.class);
 
         authService = new AuthService(
-                googleTokenVerifier,
                 userRepository,
+                passwordEncoder,
+                jwtService,
+                otpService,
+                googleTokenVerifier,
                 candidateProfileRepository,
                 socialAccountRepository);
 
+        when(passwordEncoder.encode(any(String.class)))
+                .thenReturn("$2a$10$mockedHashedPassword");
+
         // Giả lập database cấp id khi lưu user mới.
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
             ReflectionTestUtils.setField(user, "id", 10);
             return user;
@@ -67,10 +81,10 @@ class AuthServiceTest {
         AuthUserResponse response = authService.loginWithGoogle(TOKEN, null);
 
         ArgumentCaptor<User> savedUser = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(savedUser.capture());
+        verify(userRepository).saveAndFlush(savedUser.capture());
         assertThat(savedUser.getValue().getEmail()).isEqualTo("minh.anh@gmail.com");
         assertThat(savedUser.getValue().getRole()).isEqualTo(User.Role.candidate);
-        assertThat(savedUser.getValue().getPasswordHash()).isNull();
+        assertThat(savedUser.getValue().getPasswordHash()).isNotBlank();
 
         verify(candidateProfileRepository).save(any(CandidateProfile.class));
         verify(socialAccountRepository).save(any(SocialAccount.class));
@@ -93,7 +107,7 @@ class AuthServiceTest {
         AuthUserResponse response = authService.loginWithGoogle(TOKEN, "employer");
 
         // Không tạo user mới, không đổi vai trò; chỉ thêm liên kết Google.
-        verify(userRepository, never()).save(any(User.class));
+        verify(userRepository, never()).saveAndFlush(any(User.class));
         verify(candidateProfileRepository, never()).save(any(CandidateProfile.class));
         verify(socialAccountRepository).save(any(SocialAccount.class));
         assertThat(response.id()).isEqualTo(4);
@@ -110,7 +124,7 @@ class AuthServiceTest {
 
         AuthUserResponse response = authService.loginWithGoogle(TOKEN, null);
 
-        verify(userRepository, never()).save(any(User.class));
+        verify(userRepository, never()).saveAndFlush(any(User.class));
         verify(socialAccountRepository, never()).save(any(SocialAccount.class));
         assertThat(response.id()).isEqualTo(7);
         assertThat(response.role()).isEqualTo("employer");

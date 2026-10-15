@@ -1,51 +1,39 @@
 package group7.joblink.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
-// Liên kết giữa tài khoản JobLink và tài khoản Google/Facebook.
 @Entity
-@Table(name = "social_accounts")
-@Getter
-@NoArgsConstructor
+@Table(name = "social_accounts", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_social_provider_user", columnNames = {"provider", "provider_user_id"}),
+        @UniqueConstraint(name = "uq_social_user_provider", columnNames = {"user_id", "provider"})
+})
 public class SocialAccount {
+    public enum Provider { google, facebook }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private Provider provider;
 
-    // Mã định danh cố định do Google/Facebook cấp (Google: "sub").
     @Column(name = "provider_user_id", nullable = false, length = 255)
     private String providerUserId;
 
-    @Column(
-        name = "created_at",
-        nullable = false,
-        insertable = false,
-        updatable = false
-    )
-    private LocalDateTime createdAt;
+    protected SocialAccount() {}
 
     public SocialAccount(User user, Provider provider, String providerUserId) {
         this.user = user;
         this.provider = provider;
         this.providerUserId = providerUserId;
     }
-
-    // Giá trị khớp với ENUM trong database.
-    public enum Provider {
-        google,
-        facebook
-    }
+    public Long getId() { return id; }
+    public User getUser() { return user; }
+    public Provider getProvider() { return provider; }
+    public String getProviderUserId() { return providerUserId; }
 }
