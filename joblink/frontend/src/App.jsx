@@ -13,6 +13,15 @@ import JobsPage from "./pages/candidate/JobsPage";
 import JobDetailPage from "./pages/candidate/JobDetailPage";
 import ProfilePage from "./pages/candidate/ProfilePage";
 
+// Admin Components (khu vực quản trị /admin)
+import AdminLayout from "./components/admin/AdminLayout.jsx";
+import AdminOverview from "./pages/admin/AdminOverview.jsx";
+import AdminUsers from "./pages/admin/AdminUsers.jsx";
+import AdminJobs from "./pages/admin/AdminJobs.jsx";
+import AdminJobEdit from "./pages/admin/AdminJobEdit.jsx";
+import AdminReports from "./pages/admin/AdminReports.jsx";
+import AdminPackages from "./pages/admin/AdminPackages.jsx";
+
 // Services
 import { getCurrentUser, logout } from "./services/authService";
 
@@ -28,6 +37,7 @@ export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     // Người dùng đang đăng nhập (id, email, role, fullName, avatar) lấy từ backend
     const [currentUser, setCurrentUser] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
 
     // --- STATE ỨNG DỤNG CHÍNH ---
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -47,16 +57,33 @@ export default function App() {
 
     // Khôi phục phiên đăng nhập (cookie session) khi tải lại trang
     useEffect(() => {
-        getCurrentUser()
-            .then((user) => {
-                if (user) {
+        let cancelled = false;
+            async function restoreSession() {
+            try {
+                const user = await getCurrentUser();
+
+                if (!cancelled) {
                     setCurrentUser(user);
-                    setIsAuthenticated(true);
+                    setIsAuthenticated(Boolean(user));
                 }
-            })
-            .catch(() => {
-                // Backend chưa chạy: coi như chưa đăng nhập
-            });
+            } catch (error) {
+                if (!cancelled) {
+                    setCurrentUser(null);
+                    setIsAuthenticated(false);
+                    console.error("Không kiểm tra được phiên đăng nhập:", error);
+                }
+            } finally {
+                if (!cancelled) {
+                    setAuthLoading(false);
+                }
+            }
+        }
+
+        restoreSession();
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     // --- HANDLERS ---
@@ -73,11 +100,26 @@ export default function App() {
 
     // Hàm gọi khi đăng nhập thành công (user: thông tin backend trả về, nếu có)
     function handleLoginSuccess(user) {
-        if (user) {
-            setCurrentUser(user);
+        if (!user?.id || !user?.role) {
+            throw new Error("Chưa nhận được thông tin đăng nhập hợp lệ.");
         }
+
+        setCurrentUser(user);
         setIsAuthenticated(true);
-        navigate("/discover"); // Đăng nhập xong đẩy về trang chủ
+
+        const returnTo = location.state?.returnTo;
+
+        // Chỉ nhận đường dẫn chi tiết việc làm trong ứng dụng.
+        const destination =
+            typeof returnTo === "string" &&
+            /^\/jobs\/\d+$/.test(returnTo) ? returnTo : "/discover";
+
+        navigate(destination, { replace: true });
+    }
+    // xử lý hết hạn phiên
+    function handleSessionExpired() {
+        setCurrentUser(null);
+        setIsAuthenticated(false);
     }
 
     async function handleLogout() {
@@ -94,11 +136,14 @@ export default function App() {
     // --- KIỂM TRA ROUTE HIỆN TẠI ---
     // Nếu đang ở trang login hoặc register thì không hiển thị Header và Sidebar
     const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+    // Khu vực admin có Header/Sidebar riêng (trong AdminLayout) nên cũng ẩn
+    // Header và Sidebar ứng viên, giống trang auth.
+    const isAdminPage = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
 
     return (
         <>
-            {/* Chỉ hiển thị Header & Sidebar khi KHÔNG PHẢI ở trang đăng nhập/đăng ký */}
-            {!isAuthPage && (
+            {/* Chỉ hiển thị Header & Sidebar khi KHÔNG PHẢI ở trang đăng nhập/đăng ký và KHÔNG ở khu vực admin */}
+            {!isAuthPage && !isAdminPage && (
                 <>
                     <Header
                         onOpenSidebar={() => setSidebarOpen(true)}
@@ -161,6 +206,19 @@ export default function App() {
                             />
                         }
                     />
+
+                    {/* --- KHU VỰC ADMIN (không cần đăng nhập để xem thử: dữ liệu mẫu
+                         tự hiện khi backend chưa trả dữ liệu; muốn chặn theo role thì
+                         bọc thêm <Route element={<AdminRoute />}> ở ngoài, xem
+                         components/admin/AdminRoute.jsx) --- */}
+                    <Route path="/admin" element={<AdminLayout />}>
+                        <Route index element={<AdminOverview />} />
+                        <Route path="users" element={<AdminUsers />} />
+                        <Route path="jobs" element={<AdminJobs />} />
+                        <Route path="jobs/:id/edit" element={<AdminJobEdit />} />
+                        <Route path="reports" element={<AdminReports />} />
+                        <Route path="packages" element={<AdminPackages />} />
+                    </Route>
 
                     <Route
                         path="*"

@@ -1,8 +1,10 @@
 package group7.joblink.repository;
 
 import group7.joblink.entity.Job;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -30,4 +32,8 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
     @Override
     @EntityGraph(attributePaths = {"company", "skills"})
     Optional<Job> findById(Integer id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT j FROM Job j WHERE j.id = :id")
+    Optional<Job> findForUpdate(@Param("id") Integer id);
 }
