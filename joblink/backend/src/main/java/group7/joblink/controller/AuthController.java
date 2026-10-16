@@ -1,97 +1,100 @@
 package group7.joblink.controller;
 
+import group7.joblink.dto.*;
 import group7.joblink.dto.request.GoogleLoginRequest;
 import group7.joblink.dto.response.AuthUserResponse;
 import group7.joblink.service.AuthService;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
-
 import java.util.Map;
 
-// Đăng nhập lưu bằng HttpSession: sau khi đăng nhập, server giữ id người dùng
-// trong session (cookie JSESSIONID). Controller khác lấy người dùng hiện tại qua
-// CurrentUser.requireId(request).
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-
     private final AuthService authService;
 
     public AuthController(AuthService authService) {
         this.authService = authService;
     }
 
+    @PostMapping("/register")
+    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest body) {
+        // Chưa tạo user cho tới khi verify-otp thành công.
+        return ResponseEntity.ok(authService.register(body));
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<RegisterResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest body) {
+        return ResponseEntity.ok(authService.verifyOtp(body.email(), body.otp()));
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<RegisterResponse> resendOtp(@Valid @RequestBody ResendOtpRequest body) {
+        return ResponseEntity.ok(authService.resendOtp(body.email()));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest body,
+                                               HttpServletRequest request) {
+        AuthService.PasswordLogin loggedIn = authService.loginUser(body);
+        startSession(request, loggedIn.userId());
+        // Vẫn trả JWT + user cho Login.jsx hiện tại.
+        return ResponseEntity.ok(loggedIn.response());
+    }
+
     @PostMapping("/google")
-    public AuthUserResponse loginWithGoogle(
-            @RequestBody GoogleLoginRequest body,
-            HttpServletRequest request) {
-
+    public AuthUserResponse loginWithGoogle(@Valid @RequestBody GoogleLoginRequest body,
+                                            HttpServletRequest request) {
         if (body.credential() == null || body.credential().isBlank()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Thiếu thông tin đăng nhập Google."
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thiếu Google ID token");
         }
-
-        AuthUserResponse user =
-                authService.loginWithGoogle(body.credential(), body.role());
-
+        AuthUserResponse user = authService.loginWithGoogle(body.credential(), body.role());
         startSession(request, user.id());
-
         return user;
     }
 
     @GetMapping("/me")
-    public AuthUserResponse getCurrentUser(HttpServletRequest request) {
-        Integer userId = CurrentUser.requireId(request);
-
+    public AuthUserResponse me(HttpServletRequest request) {
+        Integer id = getSessionUserId(request);
         try {
-            return authService.getCurrentUser(userId);
-        } catch (ResponseStatusException exception) {
-            // Tài khoản bị xóa hoặc bị khóa: hủy phiên hiện tại.
-            request.getSession().invalidate();
-            throw exception;
+            return authService.getCurrentUser(id);
+        } catch (ResponseStatusException e) {
+            HttpSession session = request.getSession(false);
+            if (session != null) session.invalidate();
+            throw e;
         }
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-
-        if (session != null) {
-            session.invalidate();
-        }
-
+        if (session != null) session.invalidate();
         return ResponseEntity.noContent().build();
     }
 
-    // Luôn tạo session mới khi đăng nhập để không dùng lại session id cũ.
-    private void startSession(HttpServletRequest request, Integer userId) {
-        HttpSession oldSession = request.getSession(false);
-
-        if (oldSession != null) {
-            oldSession.invalidate();
+    private Integer getSessionUserId(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        Object value = session == null ? null : session.getAttribute(AuthService.SESSION_USER_ID);
+        if (!(value instanceof Integer id)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập");
         }
+        return id;
+    }
 
-        request.getSession(true)
-                .setAttribute(AuthService.SESSION_USER_ID, userId);
+    private void startSession(HttpServletRequest request, Integer userId) {
+        HttpSession previous = request.getSession(false);
+        if (previous != null) previous.invalidate();
+        request.getSession(true).setAttribute(AuthService.SESSION_USER_ID, userId);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, String>> handleAuthError(
-            ResponseStatusException exception) {
-
-        String message = exception.getReason() == null
-                ? "Không thể đăng nhập."
-                : exception.getReason();
-
-        return ResponseEntity
-                .status(exception.getStatusCode())
-                .body(Map.of("message", message));
+    public ResponseEntity<Map<String, String>> handleError(ResponseStatusException ex) {
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(Map.of("message", ex.getReason() == null ? "Yêu cầu không thành công" : ex.getReason()));
     }
 }
