@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Check, Sparkles } from "lucide-react";
 import { getMyProfile, updateMyProfile } from "../../services/profileService";
 import "../../style/ProfilePage.css";
+import CvManager from "../../components/CvManager";
 
 const SUMMARY_MAX_LENGTH = 2000;
 
@@ -339,6 +340,7 @@ export default function ProfilePage({ onProfileUpdated }) {
                 </section>
 
                 <aside className="profile-aside">
+                    <CvManager />
                     <div className="profile-card">
                         <p className="profile-progress__label">
                             <span>Độ hoàn thiện hồ sơ</span>

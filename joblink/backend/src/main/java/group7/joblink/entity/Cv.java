@@ -20,9 +20,11 @@ public class Cv {
     @JoinColumn(name = "candidate_id", nullable = false)
     private CandidateProfile candidate;
 
+    // Tên lưu trên ổ đĩa, do backend tạo, không dùng tên người dùng gửi lên.
     @Column(name = "file_url", nullable = false, length = 500)
     private String fileUrl;
 
+    // Tên gốc để hiển thị cho người dùng.
     @Column(name = "file_name", length = 255)
     private String fileName;
 
@@ -36,4 +38,20 @@ public class Cv {
             updatable = false
     )
     private LocalDateTime uploadedAt;
+
+    public Cv(
+            CandidateProfile candidate,
+            String fileUrl,
+            String fileName,
+            boolean defaultCv) {
+
+        this.candidate = candidate;
+        this.fileUrl = fileUrl;
+        this.fileName = fileName;
+        this.defaultCv = defaultCv;
+    }
+
+    public void changeDefault(boolean defaultCv) {
+        this.defaultCv = defaultCv;
+    }
 }
