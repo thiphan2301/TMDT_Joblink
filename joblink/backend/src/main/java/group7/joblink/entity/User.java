@@ -1,15 +1,12 @@
+
 package group7.joblink.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
-@Getter
-@NoArgsConstructor
 public class User {
 
     @Id
@@ -19,7 +16,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
-    // NULL với tài khoản chỉ đăng nhập bằng Google/Facebook.
+    // NULL nếu tài khoản chỉ đăng nhập bằng Google
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
@@ -32,21 +29,12 @@ public class User {
     private Status status;
 
     @Column(
-        name = "created_at",
-        nullable = false,
-        insertable = false,
-        updatable = false
+            name = "created_at",
+            insertable = false,
+            updatable = false
     )
     private LocalDateTime createdAt;
 
-    // Tạo tài khoản mới chưa có mật khẩu (đăng ký qua mạng xã hội).
-    public User(String email, Role role) {
-        this.email = email;
-        this.role = role;
-        this.status = Status.active;
-    }
-
-    // Giá trị khớp với ENUM trong database.
     public enum Role {
         candidate,
         employer,
@@ -56,5 +44,58 @@ public class User {
     public enum Status {
         active,
         locked
+    }
+
+    public User() {
+    }
+
+    public User(String email, Role role) {
+        this.email = email;
+        this.role = role;
+        this.status = Status.active;
+    }
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 }

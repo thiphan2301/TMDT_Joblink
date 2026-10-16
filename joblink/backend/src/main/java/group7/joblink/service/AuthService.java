@@ -1,5 +1,7 @@
+
 package group7.joblink.service;
 
+import group7.joblink.dto.*;
 import group7.joblink.dto.response.AuthUserResponse;
 import group7.joblink.entity.CandidateProfile;
 import group7.joblink.entity.SocialAccount;
@@ -7,74 +9,152 @@ import group7.joblink.entity.User;
 import group7.joblink.repository.CandidateProfileRepository;
 import group7.joblink.repository.SocialAccountRepository;
 import group7.joblink.repository.UserRepository;
-import group7.joblink.service.GoogleTokenVerifier.GoogleProfile;
+import group7.joblink.security.JwtService;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Locale;
 
 @Service
 public class AuthService {
 
-    // Khóa lưu id người dùng trong HttpSession sau khi đăng nhập.
     public static final String SESSION_USER_ID = "userId";
 
     private static final int AVATAR_MAX_LENGTH = 500;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
+    private final UserRepository users;
+    private final PasswordEncoder encoder;
+    private final JwtService jwtService;
+    private final OtpService otpService;
     private final GoogleTokenVerifier googleTokenVerifier;
-    private final UserRepository userRepository;
-    private final CandidateProfileRepository candidateProfileRepository;
-    private final SocialAccountRepository socialAccountRepository;
+    private final CandidateProfileRepository candidateProfiles;
+    private final SocialAccountRepository socialAccounts;
 
     public AuthService(
+            UserRepository users,
+            PasswordEncoder encoder,
+            JwtService jwtService,
+            OtpService otpService,
             GoogleTokenVerifier googleTokenVerifier,
-            UserRepository userRepository,
-            CandidateProfileRepository candidateProfileRepository,
-            SocialAccountRepository socialAccountRepository) {
+            CandidateProfileRepository candidateProfiles,
+            SocialAccountRepository socialAccounts
+    ) {
+        this.users = users;
+        this.encoder = encoder;
+        this.jwtService = jwtService;
+        this.otpService = otpService;
         this.googleTokenVerifier = googleTokenVerifier;
-        this.userRepository = userRepository;
-        this.candidateProfileRepository = candidateProfileRepository;
-        this.socialAccountRepository = socialAccountRepository;
+        this.candidateProfiles = candidateProfiles;
+        this.socialAccounts = socialAccounts;
     }
 
-    // Đăng nhập bằng Google. Lần đầu: liên kết với tài khoản cùng email
-    // hoặc tạo tài khoản mới (mặc định là ứng viên).
-    @Transactional
-    public AuthUserResponse loginWithGoogle(
-            String credential,
-            String requestedRole) {
+    // ======================================
+    // ĐĂNG KÝ EMAIL VÀ OTP
+    // ======================================
 
-        GoogleProfile google = googleTokenVerifier.verify(credential);
+    public RegisterResponse register(RegisterRequest body) {
+        return otpService.startRegistration(body);
+    }
 
-        if (google.email() == null || !google.emailVerified()) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Email Google của bạn chưa được xác minh."
-            );
-        }
+    public RegisterResponse verifyOtp(String email, String otp) {
+        return otpService.verify(email, otp);
+    }
 
-        User user = socialAccountRepository
-                .findByProviderAndProviderUserId(
-                        SocialAccount.Provider.google,
-                        google.googleId())
-                .map(SocialAccount::getUser)
-                .orElseGet(() -> linkGoogleAccount(google, requestedRole));
+    public RegisterResponse resendOtp(String email) {
+        return otpService.resend(email);
+    }
+
+    // ======================================
+    // ĐĂNG NHẬP EMAIL + PASSWORD
+    // ======================================
+
+    public LoginResponse login(LoginRequest body) {
+        return loginUser(body).response();
+    }
+
+    public record PasswordLogin(
+            Integer userId,
+            LoginResponse response
+    ) {}
+
+    public PasswordLogin loginUser(LoginRequest body) {
+
+        String email = normalizeEmail(body.email());
+
+        User user = users.findByEmail(email)
+                .orElseThrow(() -> err(
+                        HttpStatus.UNAUTHORIZED,
+                        "Email hoặc mật khẩu không chính xác"
+                ));
 
         ensureActive(user);
 
-        return toResponse(user);
+        if (body.password() == null
+                || user.getPasswordHash() == null
+                || !encoder.matches(
+                body.password(),
+                user.getPasswordHash()
+        )) {
+            throw err(
+                    HttpStatus.UNAUTHORIZED,
+                    "Email hoặc mật khẩu không chính xác"
+            );
+        }
+
+        String token = jwtService.generateToken(user);
+
+        // Enum -> String
+        UserResponse view = new UserResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getRole().name()
+        );
+
+        LoginResponse response = new LoginResponse(
+                token,
+                view,
+                "Đăng nhập thành công"
+        );
+
+        return new PasswordLogin(user.getId(), response);
     }
 
-    // Lấy người dùng đang đăng nhập theo id lưu trong session.
-    @Transactional(readOnly = true)
-    public AuthUserResponse getCurrentUser(Integer userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Phiên đăng nhập không còn hợp lệ."
+    // ======================================
+    // ĐĂNG NHẬP GOOGLE
+    // ======================================
+
+    @Transactional
+    public AuthUserResponse loginWithGoogle(
+            String credential,
+            String requestedRole
+    ) {
+
+        GoogleTokenVerifier.GoogleProfile profile =
+                googleTokenVerifier.verify(credential);
+
+        if (profile.email() == null || !profile.emailVerified()) {
+            throw err(
+                    HttpStatus.UNAUTHORIZED,
+                    "Email Google chưa xác minh"
+            );
+        }
+
+        User user = socialAccounts
+                .findByProviderAndProviderUserId(
+                        SocialAccount.Provider.google,
+                        profile.googleId()
+                )
+                .map(SocialAccount::getUser)
+                .orElseGet(() -> linkGoogleAccount(
+                        profile,
+                        requestedRole
                 ));
 
         ensureActive(user);
@@ -82,81 +162,137 @@ public class AuthService {
         return toResponse(user);
     }
 
+    // ======================================
+    // LẤY USER HIỆN TẠI
+    // ======================================
+
+    @Transactional(readOnly = true)
+    public AuthUserResponse getCurrentUser(Integer userId) {
+
+        User user = users.findById(userId)
+                .orElseThrow(() -> err(
+                        HttpStatus.UNAUTHORIZED,
+                        "Phiên đăng nhập không hợp lệ"
+                ));
+
+        ensureActive(user);
+
+        return toResponse(user);
+    }
+
+    // ======================================
+    // LIÊN KẾT TÀI KHOẢN GOOGLE
+    // ======================================
+
     private User linkGoogleAccount(
-            GoogleProfile google,
-            String requestedRole) {
+            GoogleTokenVerifier.GoogleProfile profile,
+            String requestedRole
+    ) {
 
-        String email = google.email().trim().toLowerCase(Locale.ROOT);
+        String email = normalizeEmail(profile.email());
 
-        User user = userRepository.findByEmail(email)
-                .orElseGet(() -> createUser(
+        User user = users.findByEmail(email)
+                .orElseGet(() -> createGoogleUser(
+                        profile,
                         email,
-                        google,
-                        toSignupRole(requestedRole)));
+                        requestedRole
+                ));
 
-        // Email này đã gắn với một tài khoản Google khác.
-        if (socialAccountRepository.existsByUser_IdAndProvider(
+        if (socialAccounts.existsByUser_IdAndProvider(
                 user.getId(),
-                SocialAccount.Provider.google)) {
-            throw new ResponseStatusException(
+                SocialAccount.Provider.google
+        )) {
+            throw err(
                     HttpStatus.CONFLICT,
-                    "Email này đã liên kết với một tài khoản Google khác."
+                    "Email đã liên kết với tài khoản Google khác"
             );
         }
 
-        socialAccountRepository.save(new SocialAccount(
+        socialAccounts.save(new SocialAccount(
                 user,
                 SocialAccount.Provider.google,
-                google.googleId()));
+                profile.googleId()
+        ));
 
         return user;
     }
 
-    private User createUser(
+    // ======================================
+    // TẠO TÀI KHOẢN GOOGLE
+    // ======================================
+
+    private User createGoogleUser(
+            GoogleTokenVerifier.GoogleProfile profile,
             String email,
-            GoogleProfile google,
-            User.Role role) {
+            String role
+    ) {
 
-        // Trigger trg_users_after_insert tự tạo ví 20 Token cho user mới.
-        User user = userRepository.save(new User(email, role));
+        User user = new User();
 
-        if (role == User.Role.candidate) {
-            String fullName = google.name() == null || google.name().isBlank()
-                    ? email.substring(0, email.indexOf('@'))
-                    : google.name().trim();
+        user.setEmail(email);
 
-            String avatar = google.picture() != null
-                    && google.picture().length() <= AVATAR_MAX_LENGTH
-                    ? google.picture()
-                    : null;
+        // String -> Enum
+        user.setRole(
+                "employer".equalsIgnoreCase(role)
+                        ? User.Role.employer
+                        : User.Role.candidate
+        );
 
-            candidateProfileRepository.save(
-                    new CandidateProfile(user.getId(), fullName, avatar));
-        }
+        user.setStatus(User.Status.active);
 
-        return user;
-    }
+        // Giữ tương thích nếu password_hash
+        // trong database đang là NOT NULL.
+        byte[] secret = new byte[32];
+        RANDOM.nextBytes(secret);
 
-    // Chỉ cho tự đăng ký vai trò ứng viên hoặc nhà tuyển dụng.
-    private User.Role toSignupRole(String requestedRole) {
-        return "employer".equals(requestedRole)
-                ? User.Role.employer
-                : User.Role.candidate;
-    }
+        String randomPassword = Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(secret);
 
-    private void ensureActive(User user) {
-        if (user.getStatus() == User.Status.locked) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Tài khoản của bạn đã bị khóa."
+        user.setPasswordHash(
+                encoder.encode(randomPassword)
+        );
+
+        users.saveAndFlush(user);
+
+        // Chỉ tạo CandidateProfile cho ứng viên
+        if (user.getRole() == User.Role.candidate) {
+
+            String fullName =
+                    profile.name() == null
+                            || profile.name().isBlank()
+                            ? email.substring(0, email.indexOf('@'))
+                            : profile.name().trim();
+
+            String avatar =
+                    profile.picture() != null
+                            && profile.picture().length() <= AVATAR_MAX_LENGTH
+                            ? profile.picture()
+                            : null;
+
+            candidateProfiles.save(
+                    new CandidateProfile(
+                            user.getId(),
+                            fullName,
+                            avatar
+                    )
             );
         }
+
+        return user;
     }
 
+    // ======================================
+    // CHUYỂN USER -> AUTH RESPONSE
+    // ======================================
+
     private AuthUserResponse toResponse(User user) {
-        CandidateProfile profile = user.getRole() == User.Role.candidate
-                ? candidateProfileRepository.findById(user.getId()).orElse(null)
-                : null;
+
+        CandidateProfile profile =
+                user.getRole() == User.Role.candidate
+                        ? candidateProfiles.findById(user.getId())
+                        .orElse(null)
+                        : null;
 
         return new AuthUserResponse(
                 user.getId(),
@@ -164,6 +300,42 @@ public class AuthService {
                 user.getRole().name(),
                 profile == null ? null : profile.getFullName(),
                 profile == null ? null : profile.getAvatar()
+        );
+    }
+
+    // ======================================
+    // KIỂM TRA TÀI KHOẢN
+    // ======================================
+
+    private void ensureActive(User user) {
+
+        if (user.getStatus() != User.Status.active) {
+            throw err(
+                    HttpStatus.FORBIDDEN,
+                    "Tài khoản đã bị khóa"
+            );
+        }
+    }
+
+    private String normalizeEmail(String email) {
+
+        if (email == null || email.isBlank()) {
+            throw err(
+                    HttpStatus.BAD_REQUEST,
+                    "Email không hợp lệ"
+            );
+        }
+
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private ResponseStatusException err(
+            HttpStatus status,
+            String message
+    ) {
+        return new ResponseStatusException(
+                status,
+                message
         );
     }
 }
