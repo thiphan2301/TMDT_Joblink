@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CvRepository extends JpaRepository<Cv, Integer> {
@@ -21,4 +22,7 @@ public interface CvRepository extends JpaRepository<Cv, Integer> {
         """)
     Optional<Cv> findDefaultForUpdate(
             @Param("candidateId") Integer candidateId);
+    List<Cv> findByCandidate_UserIdOrderByUploadedAtDescIdDesc(Integer candidateId);
+    Optional<Cv> findByIdAndCandidate_UserId(Integer id,Integer candidateId);
+    boolean existsByCandidate_UserId(Integer candidateId);
 }
