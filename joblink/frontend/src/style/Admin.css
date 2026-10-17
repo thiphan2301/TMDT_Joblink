@@ -24,6 +24,8 @@
   top: 0;
   flex: 0 0 264px;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
   padding: 22px 14px;
   background: #fff;
   border-right: 1px solid var(--a-border);
@@ -50,6 +52,31 @@
 .admin-sidebar__item--static:hover { background: transparent; }
 .admin-sidebar__divider { height: 1px; background: var(--a-border); margin: 18px 4px; }
 
+/* Khối admin ở cuối sidebar: avatar + tên/email + nút đăng xuất */
+.admin-sidebar__profile {
+  margin-top: auto;
+  padding: 14px 10px 4px;
+  border-top: 1px solid var(--a-border);
+  display: flex; align-items: center; gap: 11px;
+}
+.admin-sidebar__avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex: none;
+  object-fit: cover; display: block;
+}
+.admin-sidebar__avatar--text {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--a-primary); color: #fff; font-weight: 700; font-size: 17px;
+}
+.admin-sidebar__profile-info { flex: 1; min-width: 0; }
+.admin-sidebar__profile-info strong {
+  display: block; font-size: 14px; color: var(--a-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.admin-sidebar__profile-info span {
+  display: block; font-size: 12px; color: var(--a-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
 .admin-main { flex: 1; min-width: 0; padding: 34px 38px 0; display: flex; flex-direction: column; }
 .admin-footer {
   margin-top: auto; padding: 20px 2px 24px;
@@ -72,15 +99,26 @@
 .admin-eyebrow { margin: 0 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 1.6px; color: var(--a-primary); text-transform: uppercase; }
 .admin-page-head h1 { margin: 0 0 8px; font-size: 32px; line-height: 1.2; }
 .admin-page-desc { margin: 0; color: var(--a-muted); font-size: 15.5px; }
-.admin-mock-badge {
-  margin: 0 0 18px; padding: 10px 14px; border-radius: 10px;
-  background: #fff7e6; border: 1px solid #f3dfae; color: #8a6d1a; font-size: 13.5px;
-}
 .admin-error {
   margin: 0 0 18px; padding: 10px 14px; border-radius: 10px;
   background: #fdecec; border: 1px solid #f5c2c2; color: #b42318; font-size: 14px;
 }
 .admin-loading { color: var(--a-muted); padding: 28px 4px; }
+.admin-success-note {
+  margin: 0 0 18px; padding: 10px 14px; border-radius: 10px;
+  background: #eafaf0; border: 1px solid #b7e4c7; color: #157347; font-size: 14px;
+}
+
+/* Hàng lọc theo khoảng ngày (Tổng quan / Báo cáo) */
+.admin-filter-row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.admin-filter-row__label { font-weight: 600; color: var(--a-text); padding-bottom: 9px; }
+.admin-date-range { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.admin-date-range__field { display: flex; flex-direction: column; gap: 6px; }
+.admin-date-range__field span { font-size: 13px; color: var(--a-muted); }
+.admin-date-range .admin-input { width: auto; }
 
 /* ---------- Nút ---------- */
 .admin-btn {

@@ -107,9 +107,15 @@ export default function App() {
         setCurrentUser(user);
         setIsAuthenticated(true);
 
-        const returnTo = location.state?.returnTo;
+        // Tài khoản quản trị viên thì vào thẳng khu vực admin,
+        // không áp dụng returnTo
+        if (user.role === "admin") {
+            navigate("/admin", { replace: true });
+            return;
+        }
 
-        // Chỉ nhận đường dẫn chi tiết việc làm trong ứng dụng.
+        // Chỉ nhận đường dẫn chi tiết việc làm trong ứng dụng
+        const returnTo = location.state?.returnTo;
         const destination =
             typeof returnTo === "string" &&
             /^\/jobs\/\d+$/.test(returnTo) ? returnTo : "/discover";

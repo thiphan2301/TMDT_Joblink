@@ -2,7 +2,26 @@ package group7.joblink.service;
 
 import group7.joblink.dto.request.*;
 import group7.joblink.dto.response.AdminResponses.*;
-import group7.joblink.repository.AdminRepository;
+import group7.joblink.entity.CandidateProfile;
+import group7.joblink.entity.Company;
+import group7.joblink.entity.Job;
+import group7.joblink.entity.Order;
+import group7.joblink.entity.Promotion;
+import group7.joblink.entity.ServicePackage;
+import group7.joblink.entity.TokenPackage;
+import group7.joblink.entity.User;
+import group7.joblink.repository.AdminCandidateProfileRepository;
+import group7.joblink.repository.AdminJobRepository;
+import group7.joblink.repository.AdminSocialAccountRepository;
+import group7.joblink.repository.AdminUserRepository;
+import group7.joblink.repository.CompanyRepository;
+import group7.joblink.repository.OrderRepository;
+import group7.joblink.repository.PromotionRepository;
+import group7.joblink.repository.ServicePackageRepository;
+import group7.joblink.repository.TokenPackageRepository;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -21,6 +40,9 @@ import java.util.*;
 
 // Nghiệp vụ khu vực admin: tổng quan, người dùng, tin tuyển dụng,
 // báo cáo và gói dịch vụ. Controller gọi qua AdminAccess để chặn quyền trước.
+// Toàn bộ truy vấn đi qua các repository Spring Data JPA. Để không phải
+// sửa file dùng chung của project, phần admin có các repository riêng
+// (AdminUserRepository, AdminJobRepository...) trên cùng các entity sẵn có.
 @Service
 public class AdminService {
 
@@ -36,43 +58,122 @@ public class AdminService {
     private static final Set<String> JOB_STATUSES =
             Set.of("draft", "pending_review", "open", "closed", "rejected", "expired");
     private static final String DEFAULT_PASSWORD = "123456";
+    private static final List<Order.Status> REVENUE_STATUSES =
+            List.of(Order.Status.paid, Order.Status.fulfilled);
 
-    private final AdminRepository repo;
+    private final AdminUserRepository userRepository;
+    private final AdminCandidateProfileRepository profileRepository;
+    private final AdminSocialAccountRepository socialAccountRepository;
+    private final CompanyRepository companyRepository;
+    private final AdminJobRepository jobRepository;
+    private final OrderRepository orderRepository;
+    private final ServicePackageRepository packageRepository;
+    private final TokenPackageRepository tokenPackageRepository;
+    private final PromotionRepository promotionRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public AdminService(AdminRepository repo) {
-        this.repo = repo;
+    // flush() chủ động sau các thao tác xóa/lưu có thể vi phạm khóa ngoại,
+    // để bắt lỗi ngay trong method và trả thông báo thân thiện (409) —
+    // nếu chờ tới lúc transaction commit thì lỗi đã nằm ngoài tầm tay.
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    public AdminService(AdminUserRepository userRepository,
+                        AdminCandidateProfileRepository profileRepository,
+                        AdminSocialAccountRepository socialAccountRepository,
+                        CompanyRepository companyRepository,
+                        AdminJobRepository jobRepository,
+                        OrderRepository orderRepository,
+                        ServicePackageRepository packageRepository,
+                        TokenPackageRepository tokenPackageRepository,
+                        PromotionRepository promotionRepository) {
+        this.userRepository = userRepository;
+        this.profileRepository = profileRepository;
+        this.socialAccountRepository = socialAccountRepository;
+        this.companyRepository = companyRepository;
+        this.jobRepository = jobRepository;
+        this.orderRepository = orderRepository;
+        this.packageRepository = packageRepository;
+        this.tokenPackageRepository = tokenPackageRepository;
+        this.promotionRepository = promotionRepository;
     }
 
     /* ---------------- Tổng quan & báo cáo ---------------- */
 
+    // from/to = khoảng ngày admin chọn trên trang (yyyy-MM-dd).
+    // Không chọn -> mặc định tháng hiện tại, tăng trưởng so với tháng trước,
+    // biểu đồ 6 tháng — như hành vi ban đầu.
+    // Có chọn -> thẻ Doanh thu và % tăng trưởng tính trong khoảng đã chọn,
+    // so với khoảng liền trước có cùng độ dài; biểu đồ gom theo các tháng
+    // nằm trong khoảng. Tổng người dùng / tin / tài khoản bị khóa luôn là
+    // số hiện tại toàn hệ thống.
     @Transactional(readOnly = true)
-    public Overview getOverview() {
-        YearMonth current = YearMonth.now(VIETNAM_ZONE);
-        YearMonth previous = current.minusMonths(1);
+    public Overview getOverview(LocalDate from, LocalDate to) {
+        LocalDate today = LocalDate.now(VIETNAM_ZONE);
+        LocalDate rangeFrom = from;
+        LocalDate rangeTo = to;
+        if (rangeFrom == null && rangeTo == null) {
+            rangeFrom = today.withDayOfMonth(1);
+            rangeTo = today;
+        } else {
+            if (rangeFrom == null) rangeFrom = rangeTo;
+            if (rangeTo == null) rangeTo = rangeFrom;
+        }
+        if (rangeFrom.isAfter(rangeTo)) {
+            throw badRequest("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
+        }
+        if (rangeFrom.isBefore(today.minusYears(5)) || rangeTo.isAfter(today.plusYears(1))) {
+            throw badRequest("Khoảng ngày chọn quá xa, vui lòng chọn lại.");
+        }
 
-        long newThisMonth = repo.countUsersCreatedBetween(startOf(current), startOf(current.plusMonths(1)));
-        long newLastMonth = repo.countUsersCreatedBetween(startOf(previous), startOf(current));
-        long jobsThisMonth = repo.countJobsCreatedBetween(startOf(current), startOf(current.plusMonths(1)));
-        long jobsLastMonth = repo.countJobsCreatedBetween(startOf(previous), startOf(current));
-        BigDecimal revenueThisMonth = repo.sumRevenueBetween(startOf(current), startOf(current.plusMonths(1)));
-        BigDecimal revenueLastMonth = repo.sumRevenueBetween(startOf(previous), startOf(current));
+        LocalDateTime start = rangeFrom.atStartOfDay();
+        LocalDateTime endExclusive = rangeTo.plusDays(1).atStartOfDay();
+        long lengthDays = java.time.temporal.ChronoUnit.DAYS.between(start, endExclusive);
+        LocalDateTime prevEnd = start;
+        LocalDateTime prevStart = start.minusDays(lengthDays);
+
+        long newInRange = userRepository
+                .countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(start, endExclusive);
+        long newInPrev = userRepository
+                .countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(prevStart, prevEnd);
+        long jobsInRange = jobRepository
+                .countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(start, endExclusive);
+        long jobsInPrev = jobRepository
+                .countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(prevStart, prevEnd);
+        BigDecimal revenueInRange = orderRepository
+                .sumRevenueBetween(REVENUE_STATUSES, start, endExclusive);
+        BigDecimal revenueInPrev = orderRepository
+                .sumRevenueBetween(REVENUE_STATUSES, prevStart, prevEnd);
 
         return new Overview(
-                repo.countUsers(),
-                growthPercent(newThisMonth, newLastMonth),
-                repo.countJobs(),
-                growthPercent(jobsThisMonth, jobsLastMonth),
-                revenueThisMonth,
-                growthPercent(revenueThisMonth, revenueLastMonth),
-                repo.countUsersByStatus("locked"),
-                monthlySeries(6),
+                userRepository.count(),
+                growthPercent(newInRange, newInPrev),
+                jobRepository.count(),
+                growthPercent(jobsInRange, jobsInPrev),
+                revenueInRange,
+                growthPercent(revenueInRange, revenueInPrev),
+                userRepository.countByStatus(User.Status.locked),
+                monthlySeries(rangeFrom, rangeTo),
                 distribution()
         );
     }
 
+    // period dùng khi không chọn ngày cụ thể: month | 3months | 6months.
+    // Có from/to thì khoảng ngày thắng — biểu đồ trả đúng các tháng trong khoảng.
     @Transactional(readOnly = true)
-    public Report getReport(String period) {
+    public Report getReport(String period, LocalDate from, LocalDate to) {
+        if (from != null || to != null) {
+            LocalDate today = LocalDate.now(VIETNAM_ZONE);
+            LocalDate rangeTo = to == null ? from : to;
+            LocalDate rangeFrom = from == null ? rangeTo : from;
+            if (rangeFrom.isAfter(rangeTo)) {
+                throw badRequest("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
+            }
+            if (rangeFrom.isBefore(today.minusYears(5)) || rangeTo.isAfter(today.plusYears(1))) {
+                throw badRequest("Khoảng ngày chọn quá xa, vui lòng chọn lại.");
+            }
+            return new Report(monthlySeries(rangeFrom, rangeTo), distribution());
+        }
         int months = switch (period == null ? "6months" : period) {
             case "month" -> 1;
             case "3months" -> 3;
@@ -85,24 +186,44 @@ public class AdminService {
         YearMonth current = YearMonth.now(VIETNAM_ZONE);
         List<MonthlyPoint> result = new ArrayList<>();
         for (int i = months - 1; i >= 0; i--) {
-            YearMonth ym = current.minusMonths(i);
-            LocalDateTime from = startOf(ym);
-            LocalDateTime to = startOf(ym.plusMonths(1));
-            result.add(new MonthlyPoint(
-                    "T" + ym.getMonthValue(),
-                    "T" + ym.getMonthValue() + "/" + ym.getYear(),
-                    repo.countUsersCreatedBetween(from, to),
-                    repo.countJobsCreatedBetween(from, to),
-                    repo.sumRevenueBetween(from, to)
-            ));
+            result.add(monthPoint(current.minusMonths(i), null, null));
         }
         return result;
     }
 
+    // Gom số liệu theo từng tháng nằm trong [from, to]; mỗi tháng chỉ tính
+    // phần giao với khoảng đã chọn (tháng đầu/cuối có thể bị cắt một phần).
+    private List<MonthlyPoint> monthlySeries(LocalDate from, LocalDate to) {
+        LocalDateTime rangeStart = from.atStartOfDay();
+        LocalDateTime rangeEnd = to.plusDays(1).atStartOfDay();
+        List<MonthlyPoint> result = new ArrayList<>();
+        YearMonth ym = YearMonth.from(from);
+        YearMonth last = YearMonth.from(to);
+        while (!ym.isAfter(last)) {
+            result.add(monthPoint(ym, rangeStart, rangeEnd));
+            ym = ym.plusMonths(1);
+        }
+        return result;
+    }
+
+    private MonthlyPoint monthPoint(YearMonth ym, LocalDateTime clampFrom, LocalDateTime clampTo) {
+        LocalDateTime from = startOf(ym);
+        LocalDateTime to = startOf(ym.plusMonths(1));
+        if (clampFrom != null && clampFrom.isAfter(from)) from = clampFrom;
+        if (clampTo != null && clampTo.isBefore(to)) to = clampTo;
+        return new MonthlyPoint(
+                "T" + ym.getMonthValue(),
+                "T" + ym.getMonthValue() + "/" + ym.getYear(),
+                userRepository.countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(from, to),
+                jobRepository.countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(from, to),
+                orderRepository.sumRevenueBetween(REVENUE_STATUSES, from, to)
+        );
+    }
+
     private List<RoleSlice> distribution() {
         Map<String, Long> counts = new HashMap<>();
-        for (Map<String, Object> row : repo.countUsersByRole()) {
-            counts.put(String.valueOf(row.get("role")), toLong(row.get("cnt")));
+        for (Object[] row : userRepository.countByRole()) {
+            counts.put(((User.Role) row[0]).name(), ((Number) row[1]).longValue());
         }
         long total = counts.values().stream().mapToLong(Long::longValue).sum();
         List<RoleSlice> result = new ArrayList<>();
@@ -136,14 +257,70 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public List<UserRow> getUsers() {
-        return repo.findUsers().stream().map(row -> new UserRow(
-                toInt(row.get("id")),
-                str(row.get("full_name")),
-                str(row.get("email")),
-                str(row.get("role")),
-                str(row.get("status")),
-                toDateTime(row.get("created_at"))
-        )).toList();
+        List<User> users = userRepository.findAllByOrderByIdAsc();
+        // Ghép tên hiển thị hàng loạt: hồ sơ ứng viên + công ty sở hữu.
+        Map<Integer, String> profileNames = new HashMap<>();
+        for (CandidateProfile profile : profileRepository.findAll()) {
+            profileNames.put(profile.getUserId(), profile.getFullName());
+        }
+        Map<Integer, String> companyNames = new HashMap<>();
+        if (!users.isEmpty()) {
+            List<Integer> ids = users.stream().map(User::getId).toList();
+            for (Object[] row : companyRepository.findNamesByOwnerIds(ids)) {
+                // Tên công ty đầu tiên của mỗi chủ sở hữu.
+                companyNames.putIfAbsent(toInt(row[0]), str(row[1]));
+            }
+        }
+        return users.stream()
+                .map(u -> toUserRow(u, profileNames, companyNames))
+                .toList();
+    }
+
+    private UserRow toUserRow(User user, Map<Integer, String> profileNames,
+                              Map<Integer, String> companyNames) {
+        return new UserRow(
+                user.getId(),
+                displayName(user, profileNames, companyNames),
+                user.getEmail(),
+                user.getRole().name(),
+                user.getStatus().name(),
+                user.getCreatedAt()
+        );
+    }
+
+    // Tên hiển thị: ứng viên lấy từ candidate_profiles, nhà tuyển dụng lấy
+    // tên công ty họ sở hữu, còn lại lấy phần trước @ của email.
+    private String displayName(User user, Map<Integer, String> profileNames,
+                               Map<Integer, String> companyNames) {
+        String name = null;
+        if (user.getRole() == User.Role.candidate) {
+            name = profileNames != null
+                    ? profileNames.get(user.getId())
+                    : profileRepository.findById(user.getId())
+                            .map(CandidateProfile::getFullName).orElse(null);
+        } else if (user.getRole() == User.Role.employer) {
+            name = companyNames != null
+                    ? companyNames.get(user.getId())
+                    : companyRepository.findFirstByOwnerId(user.getId())
+                            .map(Company::getName).orElse(null);
+        }
+        if (name == null || name.isBlank()) {
+            String email = user.getEmail();
+            int at = email.indexOf('@');
+            name = at > 0 ? email.substring(0, at) : email;
+        }
+        return name;
+    }
+
+    private UserRow findUserRow(int id) {
+        User user = userRepository.findById(id).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng."));
+        return toUserRow(user, null, null);
+    }
+
+    private User findUserOrThrow(int id) {
+        return userRepository.findById(id).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng."));
     }
 
     @Transactional
@@ -151,7 +328,7 @@ public class AdminService {
         String email = requireEmail(req.email());
         String role = requireRole(req.role());
         String fullName = requireText(req.fullName(), "Vui lòng nhập họ và tên.");
-        if (repo.existsEmail(email, null)) {
+        if (userRepository.existsByEmail(email)) {
             throw conflict("Email này đã được sử dụng.");
         }
         String rawPassword = req.password() == null || req.password().isBlank()
@@ -159,63 +336,83 @@ public class AdminService {
         if (rawPassword.length() < 6) {
             throw badRequest("Mật khẩu cần ít nhất 6 ký tự.");
         }
-        int id = repo.insertUser(email, passwordEncoder.encode(rawPassword), role);
-        if ("candidate".equals(role)) {
-            repo.insertCandidateProfile(id, fullName);
-        } else if ("employer".equals(role)) {
-            // Nhà tuyển dụng chưa có công ty: tên hiển thị tạm lấy từ họ tên,
-            // lưu ở companies khi họ tạo công ty. Ở đây giữ qua profile dự phòng:
-            // không có bảng employer_profiles nên bỏ qua — tên sẽ lấy từ email
-            // cho tới khi công ty được tạo. (Xem README mục giới hạn.)
+        User user = new User(email, User.Role.valueOf(role));
+        // Trigger trg_users_after_insert tự tạo ví 20 Token cho user mới.
+        user = userRepository.save(user);
+        // Constructor của User không nhận mật khẩu nên đặt hash ngay sau đó.
+        userRepository.updatePasswordHash(
+                user.getId(), passwordEncoder.encode(rawPassword));
+        if (user.getRole() == User.Role.candidate) {
+            profileRepository.save(new CandidateProfile(user.getId(), fullName, null));
         }
-        return findUserRow(id);
+        // Nhà tuyển dụng chưa có công ty: tên hiển thị tạm lấy từ email
+        // cho tới khi công ty được tạo. (Xem README mục giới hạn.)
+        return findUserRow(user.getId());
     }
 
     @Transactional
     public UserRow updateUser(int id, AdminUserRequest req) {
-        ensureUserExists(id);
+        User user = findUserOrThrow(id);
         String email = requireEmail(req.email());
         String role = requireRole(req.role());
         String fullName = requireText(req.fullName(), "Vui lòng nhập họ và tên.");
-        if (repo.existsEmail(email, id)) {
+        if (userRepository.existsByEmailAndIdNot(email, id)) {
             throw conflict("Email này đã được sử dụng.");
         }
-        repo.updateUser(id, email, role);
-        repo.updateDisplayName(id, role, fullName);
+        userRepository.updateEmailAndRole(id, email, User.Role.valueOf(role));
+        updateDisplayName(id, role, fullName);
         return findUserRow(id);
+    }
+
+    // Đổi tên hiển thị theo vai trò: ứng viên sửa candidate_profiles
+    // (chưa có hồ sơ thì tạo), nhà tuyển dụng sửa tên công ty sở hữu.
+    private void updateDisplayName(int userId, String role, String fullName) {
+        if ("candidate".equals(role)) {
+            int updated = profileRepository.updateFullName(userId, fullName);
+            if (updated == 0) {
+                profileRepository.save(new CandidateProfile(userId, fullName, null));
+            }
+        } else if ("employer".equals(role)) {
+            companyRepository.updateNameByOwnerId(userId, fullName);
+        }
+    }
+
+    // Admin đặt lại mật khẩu cho tài khoản bất kỳ. Tài khoản đăng nhập bằng
+    // Google (password_hash đang NULL) cũng đặt được — sau đó đăng nhập bằng
+    // mật khẩu vẫn cần API đăng nhập tương ứng ở phía auth.
+    @Transactional
+    public void changeUserPassword(int id, AdminPasswordRequest req) {
+        findUserOrThrow(id);
+        String raw = req == null ? null : req.newPassword();
+        if (raw == null || raw.length() < 6) {
+            throw badRequest("Mật khẩu mới cần ít nhất 6 ký tự.");
+        }
+        userRepository.updatePasswordHash(id, passwordEncoder.encode(raw));
     }
 
     @Transactional
     public void setUserStatus(int id, String status) {
-        ensureUserExists(id);
+        findUserOrThrow(id);
         if (status == null || !USER_STATUSES.contains(status)) {
             throw badRequest("Trạng thái tài khoản không hợp lệ.");
         }
-        repo.setUserStatus(id, status);
+        userRepository.updateStatus(id, User.Status.valueOf(status));
     }
 
     @Transactional
     public void deleteUser(int id) {
-        ensureUserExists(id);
+        findUserOrThrow(id);
         try {
-            repo.deleteUser(id);
+            // Gỡ các bản ghi phụ thuộc đơn giản trước; nếu còn ràng buộc khác
+            // (đơn hàng, tin đăng, ứng tuyển...) database sẽ báo lỗi khóa
+            // ngoại ở bước flush và chuyển thành thông báo bên dưới.
+            socialAccountRepository.deleteByUser_Id(id);
+            profileRepository.findById(id).ifPresent(profileRepository::delete);
+            userRepository.deleteById(id);
+            entityManager.flush();
         } catch (DataIntegrityViolationException e) {
             throw conflict("Tài khoản đã có dữ liệu liên quan (đơn hàng, tin đăng, ứng tuyển...) "
                     + "nên không xóa được. Hãy khóa tài khoản thay vì xóa.");
-        }
-    }
-
-    private UserRow findUserRow(int id) {
-        return getUsers().stream()
-                .filter(u -> u.id() == id)
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Không tìm thấy người dùng."));
-    }
-
-    private void ensureUserExists(int id) {
-        if (!repo.userExists(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng.");
         }
     }
 
@@ -223,16 +420,43 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public List<JobRow> getJobs() {
-        return repo.findJobs().stream().map(this::toJobRow).toList();
+        List<Job> jobs = jobRepository.findAllByOrderByCreatedAtDescIdDesc();
+        Map<Integer, Long> applicantsByJob = countMap(jobRepository.countApplicationsByJob());
+        Map<Integer, Integer> walletByJob = walletMap();
+        Map<Integer, Integer[]> displayByJob = displayMap();
+        return jobs.stream()
+                .map(j -> toJobRow(j,
+                        applicantsByJob.getOrDefault(j.getId(), 0L),
+                        walletByJob.get(j.getId()),
+                        displayByJob.get(j.getId())))
+                .toList();
+    }
+
+    // Số dư ví Token theo từng tin, từ truy vấn native của AdminJobRepository.
+    private Map<Integer, Integer> walletMap() {
+        Map<Integer, Integer> map = new HashMap<>();
+        for (Object[] row : jobRepository.walletBalanceByJob()) {
+            map.put(toInt(row[0]), row[1] == null ? null : toInt(row[1]));
+        }
+        return map;
+    }
+
+    // [display_days, token_cost] theo từng tin (2 cột V7 chưa có trong entity).
+    private Map<Integer, Integer[]> displayMap() {
+        Map<Integer, Integer[]> map = new HashMap<>();
+        for (Object[] row : jobRepository.displayInfoByJob()) {
+            map.put(toInt(row[0]), new Integer[]{
+                    row[1] == null ? null : toInt(row[1]),
+                    row[2] == null ? null : toInt(row[2])});
+        }
+        return map;
     }
 
     @Transactional(readOnly = true)
     public List<CompanyRow> getCompanies() {
-        return repo.findCompanies().stream().map(row -> new CompanyRow(
-                toInt(row.get("id")),
-                str(row.get("name")),
-                str(row.get("industry"))
-        )).toList();
+        return companyRepository.findAllByOrderByNameAsc().stream()
+                .map(c -> new CompanyRow(c.getId(), c.getName(), c.getIndustry()))
+                .toList();
     }
 
     @Transactional
@@ -241,9 +465,8 @@ public class AdminService {
         if (req.companyId() == null) {
             throw badRequest("Vui lòng chọn công ty đăng tin.");
         }
-        if (!repo.companyExists(req.companyId())) {
-            throw badRequest("Công ty đăng tin không tồn tại.");
-        }
+        Company company = companyRepository.findById(req.companyId())
+                .orElseThrow(() -> badRequest("Công ty đăng tin không tồn tại."));
         String status = req.status() == null ? "open" : req.status();
         if (!JOB_STATUSES.contains(status)) {
             throw badRequest("Trạng thái tin tuyển dụng không hợp lệ.");
@@ -252,22 +475,24 @@ public class AdminService {
         if (!Set.of("hour", "month", "project").contains(salaryUnit)) {
             throw badRequest("Đơn vị lương không hợp lệ.");
         }
-        repo.insertJob(req.companyId(), title, req.description(),
+        jobRepository.insertJob(req.companyId(), title, req.description(),
                 req.salaryMin(), req.salaryMax(), salaryUnit,
                 req.location(), req.jobType(),
                 req.level() == null ? null : req.level().toLowerCase(Locale.ROOT),
                 req.workingSchedule(), req.deadline(), status,
-                req.displayDays(), req.tokenCost(), adminId);
+                req.displayDays() == null ? JOB_DISPLAY_DAYS_DEFAULT : req.displayDays(),
+                req.tokenCost() == null ? JOB_TOKEN_COST_DEFAULT : req.tokenCost(),
+                adminId);
         if (req.industry() != null && !req.industry().isBlank()) {
-            repo.updateCompanyIndustry(req.companyId(), req.industry());
+            companyRepository.updateIndustryById(req.companyId(), req.industry());
         }
     }
 
     @Transactional
     public JobRow updateJob(int id, AdminJobRequest req, int adminId) {
-        Map<String, Object> existing = findJobOrThrow(id);
+        Job job = findJobOrThrow(id);
         String title = requireText(req.title(), "Vui lòng nhập tên vị trí.");
-        String status = req.status() == null ? str(existing.get("status")) : req.status();
+        String status = req.status() == null ? job.getStatus().name() : req.status();
         if (!JOB_STATUSES.contains(status)) {
             throw badRequest("Trạng thái tin tuyển dụng không hợp lệ.");
         }
@@ -275,14 +500,18 @@ public class AdminService {
         if (!Set.of("hour", "month", "project").contains(salaryUnit)) {
             throw badRequest("Đơn vị lương không hợp lệ.");
         }
-        repo.updateJob(id, title, req.description(), req.salaryMin(), req.salaryMax(),
-                salaryUnit, req.location(), req.jobType(),
+        jobRepository.updateJob(id, title, req.description(),
+                req.salaryMin(), req.salaryMax(), salaryUnit,
+                req.location(), req.jobType(),
                 req.level() == null ? null : req.level().toLowerCase(Locale.ROOT),
                 req.workingSchedule(), req.deadline(), status, adminId);
         if (req.industry() != null && !req.industry().isBlank()) {
-            repo.updateCompanyIndustry(toInt(existing.get("company_id")), req.industry());
+            companyRepository.updateIndustryById(job.getCompany().getId(), req.industry());
         }
-        return toJobRow(findJobOrThrow(id));
+        Job fresh = findJobOrThrow(id);
+        Map<Integer, Long> applicantsByJob = countMap(jobRepository.countApplicationsByJob());
+        return toJobRow(fresh, applicantsByJob.getOrDefault(id, 0L),
+                walletMap().get(id), displayMap().get(id));
     }
 
     @Transactional
@@ -291,14 +520,17 @@ public class AdminService {
         if (status == null || !JOB_STATUSES.contains(status)) {
             throw badRequest("Trạng thái tin tuyển dụng không hợp lệ.");
         }
-        repo.setJobStatus(id, status, adminId);
+        jobRepository.updateJobStatus(id, status, adminId);
     }
 
     @Transactional
     public void deleteJob(int id) {
-        findJobOrThrow(id);
+        Job job = findJobOrThrow(id);
         try {
-            repo.deleteJob(id);
+            // Các hàng job_skills do Hibernate tự gỡ (Job là phía sở hữu);
+            // còn đơn ứng tuyển tham chiếu tới tin sẽ làm flush báo lỗi.
+            jobRepository.delete(job);
+            entityManager.flush();
         } catch (DataIntegrityViolationException e) {
             throw conflict("Tin này đã có dữ liệu liên quan nên không xóa được. "
                     + "Hãy chuyển trạng thái sang Tạm dừng hoặc Hết hạn.");
@@ -308,53 +540,52 @@ public class AdminService {
     @Transactional(readOnly = true)
     public List<ApplicationRow> getJobApplications(int jobId) {
         findJobOrThrow(jobId);
-        return repo.findApplications(jobId).stream().map(row -> new ApplicationRow(
-                toInt(row.get("id")),
-                str(row.get("candidate_name")),
-                str(row.get("candidate_email")),
-                str(row.get("status")),
-                toDateTime(row.get("applied_at"))
+        return jobRepository.findApplicationsByJob(jobId).stream().map(row -> new ApplicationRow(
+                toInt(row[0]),
+                str(row[3]),
+                str(row[4]),
+                str(row[1]),
+                toDateTime(row[2])
         )).toList();
     }
 
-    private Map<String, Object> findJobOrThrow(int id) {
-        List<Map<String, Object>> rows = repo.findJob(id);
-        if (rows.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tin tuyển dụng.");
-        }
-        return rows.get(0);
+    private Job findJobOrThrow(int id) {
+        return jobRepository.findById(id).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tin tuyển dụng."));
     }
 
-    private JobRow toJobRow(Map<String, Object> row) {
-        LocalDateTime createdAt = toDateTime(row.get("created_at"));
-        BigDecimal min = toDecimal(row.get("salary_min"));
-        BigDecimal max = toDecimal(row.get("salary_max"));
-        Integer displayDaysCol = toIntOrNull(row.get("display_days"));
-        Integer tokenCostCol = toIntOrNull(row.get("token_cost"));
+    private JobRow toJobRow(Job job, long applicants, Integer employerWalletBalance,
+                            Integer[] displayInfo) {
+        LocalDateTime createdAt = job.getCreatedAt();
+        BigDecimal min = job.getSalaryMin();
+        BigDecimal max = job.getSalaryMax();
+        // display_days / token_cost đọc từ DB qua truy vấn native (entity chưa map).
+        Integer displayDaysCol = displayInfo == null ? null : displayInfo[0];
+        Integer tokenCostCol = displayInfo == null ? null : displayInfo[1];
         int displayDays = displayDaysCol == null ? JOB_DISPLAY_DAYS_DEFAULT : displayDaysCol;
         int tokenCost = tokenCostCol == null ? JOB_TOKEN_COST_DEFAULT : tokenCostCol;
+        Company company = job.getCompany();
         return new JobRow(
-                toInt(row.get("id")),
-                str(row.get("title")),
-                str(row.get("company_name")),
+                job.getId(),
+                job.getTitle(),
+                company == null ? null : company.getName(),
                 min, max,
-                str(row.get("salary_unit")),
+                job.getSalaryUnit() == null ? null : job.getSalaryUnit().name(),
                 salaryText(min, max),
-                str(row.get("location")),
-                str(row.get("industry")),
-                str(row.get("level")),
-                str(row.get("job_type")),
-                str(row.get("working_schedule")),
-                toDate(row.get("deadline")),
-                str(row.get("description")),
-                str(row.get("status")),
+                job.getLocation(),
+                company == null ? null : company.getIndustry(),
+                job.getLevel(),
+                job.getJobType(),
+                job.getWorkingSchedule(),
+                job.getDeadline(),
+                job.getDescription(),
+                job.getStatus() == null ? null : job.getStatus().name(),
                 displayDays,
                 tokenCost,
                 createdAt,
                 createdAt == null ? null : createdAt.plusDays(displayDays),
-                row.get("employer_wallet_balance") == null
-                        ? null : toInt(row.get("employer_wallet_balance")),
-                toLong(row.get("applicants"))
+                employerWalletBalance,
+                applicants
         );
     }
 
@@ -371,44 +602,47 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public Packages getPackages() {
-        List<PackageRow> packages = repo.findPackages().stream().map(row -> new PackageRow(
-                toInt(row.get("id")),
-                str(row.get("name")),
-                toDecimal(row.get("price")),
-                toIntOrNull(row.get("duration_days")),
-                toIntOrNull(row.get("job_post_limit")),
-                toIntOrNull(row.get("cv_view_limit")),
-                toInt(row.get("included_tokens")),
-                toBool(row.get("can_highlight_jobs")),
-                toBool(row.get("can_prioritize_jobs")),
-                toBool(row.get("can_search_candidates")),
-                toBool(row.get("can_direct_contact")),
-                toBool(row.get("is_active")),
-                toLong(row.get("active_subscriptions"))
-        )).toList();
-
-        List<TokenPackageRow> tokenPackages = repo.findTokenPackages().stream().map(row ->
-                new TokenPackageRow(
-                        toInt(row.get("id")),
-                        toInt(row.get("tokens")),
-                        toDecimal(row.get("price")),
-                        toBool(row.get("is_active"))
+        Map<Integer, Long> activeSubs = countMap(
+                packageRepository.countActiveSubscriptionsByPackage());
+        List<PackageRow> packages = packageRepository.findAllByOrderByPriceAsc().stream()
+                .map(pkg -> new PackageRow(
+                        pkg.getId(),
+                        pkg.getName(),
+                        pkg.getPrice(),
+                        pkg.getDurationDays(),
+                        pkg.getJobPostLimit(),
+                        pkg.getCvViewLimit(),
+                        pkg.getIncludedTokens(),
+                        pkg.isCanHighlightJobs(),
+                        pkg.isCanPrioritizeJobs(),
+                        pkg.isCanSearchCandidates(),
+                        pkg.isCanDirectContact(),
+                        pkg.isActive(),
+                        activeSubs.getOrDefault(pkg.getId(), 0L)
                 )).toList();
 
-        List<PromotionRow> promotions = repo.findPromotions().stream().map(row -> new PromotionRow(
-                toInt(row.get("id")),
-                str(row.get("code")),
-                str(row.get("discount_type")),
-                toDecimal(row.get("discount_value")),
-                toDecimal(row.get("min_order_amount")),
-                toDecimal(row.get("max_discount_amount")),
-                toDateTime(row.get("start_at")),
-                toDateTime(row.get("end_at")),
-                toIntOrNull(row.get("usage_limit")),
-                toIntOrNull(row.get("per_user_limit")),
-                toBool(row.get("is_active")),
-                toLong(row.get("used_count"))
-        )).toList();
+        List<TokenPackageRow> tokenPackages = tokenPackageRepository
+                .findAllByOrderByTokensAsc().stream()
+                .map(tp -> new TokenPackageRow(
+                        tp.getId(), tp.getTokens(), tp.getPrice(), tp.isActive()))
+                .toList();
+
+        Map<Integer, Long> usedCounts = countMap(promotionRepository.countUsagesByPromotion());
+        List<PromotionRow> promotions = promotionRepository.findAllByOrderByIdAsc().stream()
+                .map(pr -> new PromotionRow(
+                        pr.getId(),
+                        pr.getCode(),
+                        pr.getDiscountType().name(),
+                        pr.getDiscountValue(),
+                        pr.getMinOrderAmount(),
+                        pr.getMaxDiscountAmount(),
+                        pr.getStartAt(),
+                        pr.getEndAt(),
+                        pr.getUsageLimit(),
+                        pr.getPerUserLimit(),
+                        pr.isActive(),
+                        usedCounts.getOrDefault(pr.getId(), 0L)
+                )).toList();
 
         return new Packages(packages, tokenPackages, promotions);
     }
@@ -416,20 +650,23 @@ public class AdminService {
     @Transactional
     public void createPackage(AdminPackageRequest req) {
         validatePackage(req);
-        repo.insertPackage(req.name().trim(), req.price(), req.durationDays(),
+        packageRepository.save(new ServicePackage(
+                req.name().trim(), req.price(), req.durationDays(),
                 req.jobPostLimit(), req.cvViewLimit(),
                 req.includedTokens() == null ? 0 : req.includedTokens(),
                 Boolean.TRUE.equals(req.canHighlightJobs()),
                 Boolean.TRUE.equals(req.canPrioritizeJobs()),
                 Boolean.TRUE.equals(req.canSearchCandidates()),
                 Boolean.TRUE.equals(req.canDirectContact()),
-                !Boolean.FALSE.equals(req.isActive()));
+                !Boolean.FALSE.equals(req.isActive())));
     }
 
     @Transactional
     public void updatePackage(int id, AdminPackageRequest req) {
         validatePackage(req);
-        int updated = repo.updatePackage(id, req.name().trim(), req.price(), req.durationDays(),
+        ServicePackage pkg = packageRepository.findById(id)
+                .orElseThrow(() -> notFound("Không tìm thấy gói đăng ký."));
+        pkg.update(req.name().trim(), req.price(), req.durationDays(),
                 req.jobPostLimit(), req.cvViewLimit(),
                 req.includedTokens() == null ? 0 : req.includedTokens(),
                 Boolean.TRUE.equals(req.canHighlightJobs()),
@@ -437,13 +674,15 @@ public class AdminService {
                 Boolean.TRUE.equals(req.canSearchCandidates()),
                 Boolean.TRUE.equals(req.canDirectContact()),
                 !Boolean.FALSE.equals(req.isActive()));
-        if (updated == 0) throw notFound("Không tìm thấy gói đăng ký.");
     }
 
     @Transactional
     public void deletePackage(int id) {
+        Optional<ServicePackage> pkg = packageRepository.findById(id);
+        if (pkg.isEmpty()) return;
         try {
-            repo.deletePackage(id);
+            packageRepository.delete(pkg.get());
+            entityManager.flush();
         } catch (DataIntegrityViolationException e) {
             throw conflict("Gói này đã có nhà tuyển dụng sử dụng nên không xóa được. Hãy tắt gói thay vì xóa.");
         }
@@ -452,21 +691,25 @@ public class AdminService {
     @Transactional
     public void createTokenPackage(AdminTokenPackageRequest req) {
         validateTokenPackage(req);
-        repo.insertTokenPackage(req.tokens(), req.price(), !Boolean.FALSE.equals(req.isActive()));
+        tokenPackageRepository.save(new TokenPackage(
+                req.tokens(), req.price(), !Boolean.FALSE.equals(req.isActive())));
     }
 
     @Transactional
     public void updateTokenPackage(int id, AdminTokenPackageRequest req) {
         validateTokenPackage(req);
-        int updated = repo.updateTokenPackage(id, req.tokens(), req.price(),
-                !Boolean.FALSE.equals(req.isActive()));
-        if (updated == 0) throw notFound("Không tìm thấy gói Token.");
+        TokenPackage tp = tokenPackageRepository.findById(id)
+                .orElseThrow(() -> notFound("Không tìm thấy gói Token."));
+        tp.update(req.tokens(), req.price(), !Boolean.FALSE.equals(req.isActive()));
     }
 
     @Transactional
     public void deleteTokenPackage(int id) {
+        Optional<TokenPackage> tp = tokenPackageRepository.findById(id);
+        if (tp.isEmpty()) return;
         try {
-            repo.deleteTokenPackage(id);
+            tokenPackageRepository.delete(tp.get());
+            entityManager.flush();
         } catch (DataIntegrityViolationException e) {
             throw conflict("Gói Token này đã có đơn hàng nên không xóa được. Hãy tắt gói thay vì xóa.");
         }
@@ -476,10 +719,13 @@ public class AdminService {
     public void createPromotion(AdminPromotionRequest req) {
         validatePromotion(req);
         try {
-            repo.insertPromotion(req.code().trim().toUpperCase(Locale.ROOT), req.discountType(),
+            promotionRepository.save(new Promotion(
+                    req.code().trim().toUpperCase(Locale.ROOT),
+                    Promotion.DiscountType.valueOf(req.discountType()),
                     req.discountValue(), req.minOrderAmount(), req.maxDiscountAmount(),
                     req.startAt(), req.endAt(), req.usageLimit(), req.perUserLimit(),
-                    !Boolean.FALSE.equals(req.isActive()));
+                    !Boolean.FALSE.equals(req.isActive())));
+            entityManager.flush();
         } catch (DataIntegrityViolationException e) {
             throw conflict("Mã khuyến mãi này đã tồn tại.");
         }
@@ -488,21 +734,23 @@ public class AdminService {
     @Transactional
     public void updatePromotion(int id, AdminPromotionRequest req) {
         validatePromotion(req);
-        int updated;
+        Promotion promotion = promotionRepository.findById(id)
+                .orElseThrow(() -> notFound("Không tìm thấy khuyến mãi."));
         try {
-            updated = repo.updatePromotion(id, req.code().trim().toUpperCase(Locale.ROOT),
-                    req.discountType(), req.discountValue(), req.minOrderAmount(),
-                    req.maxDiscountAmount(), req.startAt(), req.endAt(),
-                    req.usageLimit(), req.perUserLimit(), !Boolean.FALSE.equals(req.isActive()));
+            promotion.update(req.code().trim().toUpperCase(Locale.ROOT),
+                    Promotion.DiscountType.valueOf(req.discountType()),
+                    req.discountValue(), req.minOrderAmount(), req.maxDiscountAmount(),
+                    req.startAt(), req.endAt(), req.usageLimit(), req.perUserLimit(),
+                    !Boolean.FALSE.equals(req.isActive()));
+            entityManager.flush();
         } catch (DataIntegrityViolationException e) {
             throw conflict("Mã khuyến mãi này đã tồn tại.");
         }
-        if (updated == 0) throw notFound("Không tìm thấy khuyến mãi.");
     }
 
     @Transactional
     public void deletePromotion(int id) {
-        repo.deletePromotion(id);
+        promotionRepository.findById(id).ifPresent(promotionRepository::delete);
     }
 
     private void validatePackage(AdminPackageRequest req) {
@@ -534,6 +782,15 @@ public class AdminService {
     }
 
     /* ---------------- Tiện ích ---------------- */
+
+    // Các truy vấn đếm dạng [khóa, số lượng] -> Map để tra cứu theo id.
+    private Map<Integer, Long> countMap(List<Object[]> rows) {
+        Map<Integer, Long> map = new HashMap<>();
+        for (Object[] row : rows) {
+            map.put(toInt(row[0]), toLong(row[1]));
+        }
+        return map;
+    }
 
     private String requireEmail(String email) {
         String value = requireText(email, "Vui lòng nhập email.")
@@ -572,40 +829,18 @@ public class AdminService {
         return v == null ? 0 : ((Number) v).intValue();
     }
 
-    static Integer toIntOrNull(Object v) {
-        return v == null ? null : ((Number) v).intValue();
-    }
-
     static long toLong(Object v) {
         return v == null ? 0 : ((Number) v).longValue();
-    }
-
-    static boolean toBool(Object v) {
-        if (v instanceof Boolean b) return b;
-        return v != null && ((Number) v).intValue() != 0;
     }
 
     static String str(Object v) {
         return v == null ? null : String.valueOf(v);
     }
 
-    static BigDecimal toDecimal(Object v) {
-        if (v == null) return null;
-        if (v instanceof BigDecimal b) return b;
-        return new BigDecimal(String.valueOf(v));
-    }
-
     static LocalDateTime toDateTime(Object v) {
         if (v == null) return null;
-        if (v instanceof LocalDateTime t) return t;
-        if (v instanceof Timestamp t) return t.toLocalDateTime();
+        if (v instanceof LocalDateTime ldt) return ldt;
+        if (v instanceof Timestamp ts) return ts.toLocalDateTime();
         return LocalDateTime.parse(String.valueOf(v).replace(' ', 'T'));
-    }
-
-    static LocalDate toDate(Object v) {
-        if (v == null) return null;
-        if (v instanceof LocalDate d) return d;
-        if (v instanceof java.sql.Date d) return d.toLocalDate();
-        return LocalDate.parse(String.valueOf(v));
     }
 }

@@ -75,3 +75,10 @@ export const IconClose = (p) => (
 export const IconSend = (p) => (
   <svg {...base(p)}><path d="M21 3 10.5 13.5M21 3l-6.8 18-3.7-7.5L3 9.8 21 3Z" /></svg>
 );
+
+export const IconKey = (p) => (
+  <svg {...base(p)}><circle cx="8" cy="15.5" r="4.5" /><path d="m11.3 12.2 8.2-8.2" /><path d="M16 5.5l3 3" /></svg>
+);
+export const IconLogout = (p) => (
+  <svg {...base(p)}><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></svg>
+);

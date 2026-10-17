@@ -5,11 +5,13 @@ import group7.joblink.dto.response.AdminResponses.*;
 import group7.joblink.service.AdminService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -29,18 +31,24 @@ public class AdminController {
 
     /* ---------- Tổng quan & báo cáo ---------- */
 
+    // from/to (yyyy-MM-dd) không bắt buộc: admin chọn khoảng ngày xem tăng trưởng.
     @GetMapping("/overview")
-    public Overview overview(HttpServletRequest request) {
+    public Overview overview(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            HttpServletRequest request) {
         adminAccess.requireAdminId(request);
-        return adminService.getOverview();
+        return adminService.getOverview(from, to);
     }
 
     @GetMapping("/reports")
     public Report reports(
             @RequestParam(name = "period", defaultValue = "6months") String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             HttpServletRequest request) {
         adminAccess.requireAdminId(request);
-        return adminService.getReport(period);
+        return adminService.getReport(period, from, to);
     }
 
     /* ---------- Người dùng ---------- */
@@ -64,6 +72,16 @@ public class AdminController {
             @RequestBody AdminUserRequest body, HttpServletRequest request) {
         adminAccess.requireAdminId(request);
         return adminService.updateUser(id, body);
+    }
+
+    @PatchMapping("/users/{id}/password")
+    public ResponseEntity<Void> changeUserPassword(
+            @PathVariable int id,
+            @RequestBody AdminPasswordRequest body,
+            HttpServletRequest request) {
+        adminAccess.requireAdminId(request);
+        adminService.changeUserPassword(id, body);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/users/{id}/status")

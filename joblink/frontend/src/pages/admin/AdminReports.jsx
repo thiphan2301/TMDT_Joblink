@@ -5,6 +5,7 @@ import { IconDownload } from "../../components/admin/AdminIcons.jsx";
 import { formatMoney } from "../../components/admin/adminFormat.js";
 import useAdminData from "../../hooks/useAdminData.js";
 import { getAdminReport } from "../../services/adminService.js";
+import DateRangePicker, { rangeLabel } from "../../components/admin/DateRangePicker.jsx";
 
 // Nhãn tháng hiện tại tự tính theo ngày đang xem, không ghi cứng.
 const NOW = new Date();
@@ -19,13 +20,20 @@ const PERIODS = [
 // theo tháng và nút Tạo & xuất báo cáo (tải file CSV ngay tại trình duyệt).
 export default function AdminReports() {
   const [period, setPeriod] = useState("6months");
-  const { data, loading, error } = useAdminData(() => getAdminReport(period), [period]);
+  // Khoảng ngày tự chọn — đủ cả Từ + Đến thì thắng kỳ báo cáo có sẵn.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const rangeActive = Boolean(from && to);
+  const { data, loading, error } = useAdminData(
+    () => getAdminReport(rangeActive ? { from, to } : period),
+    [period, rangeActive ? from : "", rangeActive ? to : ""],
+  );
 
   const periodInfo = PERIODS.find((p) => p.value === period) || PERIODS[2];
   const months = useMemo(() => {
     if (!data?.months) return [];
-    return data.months.slice(-periodInfo.months);
-  }, [data, periodInfo]);
+    return rangeActive ? data.months : data.months.slice(-periodInfo.months);
+  }, [data, periodInfo, rangeActive]);
 
   function exportCsv() {
     const header = "Tháng;Người dùng mới;Tin tuyển dụng;Doanh thu (đ)";
@@ -34,7 +42,7 @@ export default function AdminReports() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `bao-cao-joblink-${period}.csv`;
+    a.download = `bao-cao-joblink-${rangeActive ? `${from}_${to}` : period}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -52,8 +60,8 @@ export default function AdminReports() {
       />
       {error && <p className="admin-error">{error}</p>}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
-        <label htmlFor="report-period" style={{ color: "var(--a-muted)" }}>Kỳ báo cáo</label>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 22, marginBottom: 20, flexWrap: "wrap" }}>
+        <label htmlFor="report-period" style={{ color: "var(--a-muted)", paddingBottom: 10 }}>Kỳ báo cáo</label>
         <select
           id="report-period"
           className="admin-select"
@@ -63,6 +71,12 @@ export default function AdminReports() {
         >
           {PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
         </select>
+        <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
+        {rangeActive && (
+          <span style={{ color: "var(--a-muted)", paddingBottom: 10 }}>
+            Đang xem theo khoảng ngày {rangeLabel(from, to)} (bỏ qua kỳ báo cáo)
+          </span>
+        )}
       </div>
 
       {loading ? (
