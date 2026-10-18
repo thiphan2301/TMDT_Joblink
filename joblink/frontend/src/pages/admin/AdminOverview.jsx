@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { AdminPageHeader } from "../../components/admin/AdminLayout.jsx";
 import { GrowthChart, DonutChart } from "../../components/admin/AdminCharts.jsx";
 import { IconUsers, IconBriefcase, IconWallet, IconShield, IconFile, IconCheckCircle } from "../../components/admin/AdminIcons.jsx";
 import { formatNumber, formatMoneyCompact, formatPercent } from "../../components/admin/adminFormat.js";
 import useAdminData from "../../hooks/useAdminData.js";
+import DateRangePicker, { rangeLabel } from "../../components/admin/DateRangePicker.jsx";
 import { getAdminOverview } from "../../services/adminService.js";
 
 // Trang "Tổng quan nền tảng" — đúng bản thiết kế:
@@ -11,7 +13,14 @@ import { getAdminOverview } from "../../services/adminService.js";
 // và khối Thông báo hệ thống ở dưới.
 export default function AdminOverview() {
   const navigate = useNavigate();
-  const { data, loading, error } = useAdminData(getAdminOverview, []);
+  // Khoảng ngày xem tăng trưởng — chỉ áp dụng khi chọn đủ Từ + Đến.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const rangeActive = Boolean(from && to);
+  const { data, loading, error } = useAdminData(
+    () => getAdminOverview(rangeActive ? from : undefined, rangeActive ? to : undefined),
+    [rangeActive ? from : "", rangeActive ? to : ""],
+  );
 
   if (loading) return <p className="admin-loading">Đang tải tổng quan...</p>;
   if (error) return <p className="admin-error">{error}</p>;
@@ -20,15 +29,15 @@ export default function AdminOverview() {
   const stats = [
     {
       label: "Tổng người dùng", value: formatNumber(data.totalUsers),
-      sub: `${formatPercent(data.usersGrowthPercent)} so với tháng trước`, icon: IconUsers,
+      sub: `${formatPercent(data.usersGrowthPercent)} ${rangeActive ? "so với kỳ trước" : "so với tháng trước"}`, icon: IconUsers,
     },
     {
       label: "Tin tuyển dụng", value: formatNumber(data.totalJobs),
-      sub: `${formatPercent(data.jobsGrowthPercent)} so với tháng trước`, icon: IconBriefcase,
+      sub: `${formatPercent(data.jobsGrowthPercent)} ${rangeActive ? "so với kỳ trước" : "so với tháng trước"}`, icon: IconBriefcase,
     },
     {
-      label: "Doanh thu tháng", value: formatMoneyCompact(data.revenueMonth),
-      sub: `${formatPercent(data.revenueGrowthPercent)} so với tháng trước`, icon: IconWallet,
+      label: rangeActive ? "Doanh thu trong kỳ" : "Doanh thu tháng", value: formatMoneyCompact(data.revenueMonth),
+      sub: `${formatPercent(data.revenueGrowthPercent)} ${rangeActive ? "so với kỳ trước" : "so với tháng trước"}`, icon: IconWallet,
     },
     {
       label: "Tài khoản cần xử lý", value: formatNumber(data.pendingAccounts),
@@ -79,11 +88,16 @@ export default function AdminOverview() {
         ))}
       </section>
 
+      <div className="admin-filter-row">
+        <span className="admin-filter-row__label">Khoảng ngày xem tăng trưởng</span>
+        <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
+      </div>
+
       <section className="admin-grid-2">
         <div className="admin-panel">
           <div className="admin-panel__head">
             <h3>Tăng trưởng nền tảng</h3>
-            <span className="admin-chip">6 tháng gần nhất</span>
+            <span className="admin-chip">{rangeActive ? rangeLabel(from, to) : "6 tháng gần nhất"}</span>
           </div>
           <GrowthChart data={data.growth} />
         </div>

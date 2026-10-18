@@ -1,4 +1,5 @@
-import { NavLink } from "react-router";
+import { useEffect, useState } from "react";
+import { NavLink, useNavigate } from "react-router";
 import logo from "../../assets/logo.png";
 import {
   IconGrid,
@@ -6,13 +7,15 @@ import {
   IconBriefcase,
   IconChart,
   IconPackage,
-  IconWallet,
+  IconLogout,
 } from "./AdminIcons.jsx";
+import { getCurrentUser, logout } from "../../services/authService.js";
 
-// Sidebar admin theo bản thiết kế:
+// Sidebar admin:
 // MENU CHÍNH: Tổng quan hệ thống / Quản lý người dùng / Quản lý tin đăng /
 //             Báo cáo & thống kê / Quản lý gói dịch vụ
-// TIỆN ÍCH:   Ví Token / Design System (giống sidebar ứng viên — chưa có trang riêng)
+// Cuối sidebar: avatar + tên admin đang đăng nhập và nút Đăng xuất
+// (đã bỏ mục TIỆN ÍCH theo yêu cầu).
 const MAIN_MENU = [
   { to: "/admin", label: "Tổng quan hệ thống", icon: IconGrid, end: true },
   { to: "/admin/users", label: "Quản lý người dùng", icon: IconUsers },
@@ -21,12 +24,27 @@ const MAIN_MENU = [
   { to: "/admin/packages", label: "Quản lý gói dịch vụ", icon: IconPackage },
 ];
 
-const UTILITY_MENU = [
-  { id: "wallet", label: "Ví Token", icon: IconWallet },
-  { id: "design", label: "Design System", icon: IconGrid },
-];
-
 export default function AdminSidebar() {
+  const navigate = useNavigate();
+  const [me, setMe] = useState(null);
+
+  useEffect(() => {
+    // Chưa đăng nhập (ví dụ đang bật demo-access) thì /api/auth/me trả null
+    // -> khối profile hiện tên mặc định, nút đăng xuất vẫn đưa về /login.
+    getCurrentUser().then(setMe).catch(() => setMe(null));
+  }, []);
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      navigate("/login");
+    }
+  }
+
+  const displayName = me?.fullName || (me?.email ? me.email.split("@")[0] : "Quản trị viên");
+  const initials = displayName.trim().charAt(0).toUpperCase() || "A";
+
   return (
     <aside className="admin-sidebar">
       <div className="admin-sidebar__brand">
@@ -51,21 +69,30 @@ export default function AdminSidebar() {
             </li>
           ))}
         </ul>
-
-        <div className="admin-sidebar__divider" />
-
-        <p className="admin-sidebar__heading">TIỆN ÍCH</p>
-        <ul className="admin-sidebar__list">
-          {UTILITY_MENU.map((item) => (
-            <li key={item.id}>
-              <span className="admin-sidebar__item admin-sidebar__item--static" title="Chưa có trang riêng">
-                <item.icon size={20} />
-                <span>{item.label}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
       </nav>
+
+      <div className="admin-sidebar__profile">
+        {me?.avatar ? (
+          <img className="admin-sidebar__avatar" src={me.avatar} alt="" />
+        ) : (
+          <span className="admin-sidebar__avatar admin-sidebar__avatar--text" aria-hidden="true">
+            {initials}
+          </span>
+        )}
+        <div className="admin-sidebar__profile-info">
+          <strong>{displayName}</strong>
+          <span>{me?.email || "Chế độ demo (chưa đăng nhập)"}</span>
+        </div>
+        <button
+          type="button"
+          className="admin-icon-btn"
+          onClick={handleLogout}
+          aria-label="Đăng xuất"
+          title="Đăng xuất"
+        >
+          <IconLogout size={19} />
+        </button>
+      </div>
     </aside>
   );
 }
