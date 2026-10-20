@@ -1,0 +1,24 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: joblink-mysql
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${JOBLINK_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: joblink
+
+    ports:
+      - "127.0.0.1:3307:3306"
+
+    volumes:
+      - joblink_mysql_data:/var/lib/mysql
+
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+07:00
+      - --event-scheduler=ON
+
+volumes:
+  joblink_mysql_data:
