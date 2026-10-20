@@ -1,0 +1,460 @@
+/* Trang "Việc đã ứng tuyển" — ứng viên xem trạng thái hồ sơ */
+
+.applications-page,
+.applications-page * {
+  box-sizing: border-box;
+}
+
+.applications-page {
+  min-width: 0;
+  min-height: 100vh;
+  padding: 36px;
+  background: #f7f9fc;
+  color: #172334;
+  font-family: Arial, sans-serif;
+}
+
+.applications-page h1 {
+  margin: 0 0 8px;
+  font-size: clamp(25px, 2.6vw, 32px);
+}
+
+.applications-page button {
+  font: inherit;
+}
+
+.applications-muted {
+  margin: 0;
+  color: #74859b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.applications-card {
+  border: 1px solid #e3e9f2;
+  border-radius: 20px;
+  background: white;
+}
+
+/* Thông báo có cập nhật mới */
+.applications-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 24px;
+  padding: 14px 18px;
+  border: 1px solid #cfe2ff;
+  border-radius: 14px;
+  background: #eef5ff;
+  color: #0b4a8f;
+  font-size: 14px;
+}
+
+/* Tab lọc trạng thái */
+.applications-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 24px 0 16px;
+  overflow-x: auto;
+}
+
+.applications-tabs button {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border: 1px solid #e3e9f2;
+  border-radius: 12px;
+  background: white;
+  color: #4b5c72;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.applications-tabs button.is-active {
+  border-color: #087cff;
+  background: #087cff;
+  color: white;
+}
+
+/* Danh sách đơn */
+.applications-list {
+  overflow: hidden;
+}
+
+.applications-list__head,
+.application-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 190px 120px;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px;
+}
+
+.applications-list__head {
+  border-bottom: 1px solid #edf1f6;
+  background: #f9fbfd;
+  color: #74859b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.application-row {
+  border-bottom: 1px solid #edf1f6;
+}
+
+.application-row:last-child {
+  border-bottom: 0;
+}
+
+.application-row--new {
+  background: #fbfdff;
+  box-shadow: inset 3px 0 0 #087cff;
+}
+
+.application-row__job {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.application-row__job .job-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.application-row__job > div {
+  min-width: 0;
+}
+
+.application-row__title {
+  color: #172334;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.application-row__title:hover {
+  color: #087cff;
+}
+
+.application-row__job p {
+  margin: 6px 0 0;
+  overflow: hidden;
+  color: #74859b;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-row__date {
+  color: #4b5c72;
+  font-size: 14px;
+}
+
+.application-row__label {
+  display: none;
+}
+
+.application-row__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.application-status {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.application-status--blue {
+  background: #eef5ff;
+  color: #0062cc;
+}
+
+.application-status--green {
+  background: #e8f8ef;
+  color: #05875a;
+}
+
+.application-status--red {
+  background: #fff1f1;
+  color: #d32f2f;
+}
+
+.application-new {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #087cff;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.application-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: #087cff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.application-toggle svg {
+  transition: transform 0.2s;
+}
+
+.application-toggle svg.is-open {
+  transform: rotate(180deg);
+}
+
+/* Chi tiết đơn */
+.application-detail {
+  grid-column: 1 / -1;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: #f9fbfd;
+}
+
+.application-detail h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.application-detail__title {
+  margin-top: 18px !important;
+}
+
+.application-message {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.application-message--blue {
+  background: #eef5ff;
+  color: #0b4a8f;
+}
+
+.application-message--green {
+  background: #e8f8ef;
+  color: #05683f;
+}
+
+.application-message--red {
+  background: #fff1f1;
+  color: #b42318;
+}
+
+.application-interview {
+  padding: 16px;
+  border: 1px solid #bfe3cf;
+  border-radius: 14px;
+  background: white;
+}
+
+.application-interview p {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: #26364b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.application-interview p svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #05875a;
+}
+
+.application-interview__notes {
+  color: #4b5c72 !important;
+}
+
+.application-interview__status {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff8eb;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.application-link {
+  color: #087cff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Tiến trình hồ sơ */
+.application-timeline {
+  margin: 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+}
+
+.application-timeline li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 0 16px 22px;
+  border-left: 2px solid #dfe7f2;
+  font-size: 14px;
+}
+
+.application-timeline li:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+
+.application-timeline li::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #087cff;
+  box-shadow: 0 0 0 1px #dfe7f2;
+}
+
+.application-timeline li.is-green::before {
+  background: #05875a;
+}
+
+.application-timeline li.is-red::before {
+  background: #d32f2f;
+}
+
+.application-timeline span {
+  color: #74859b;
+  font-size: 13px;
+}
+
+.application-timeline small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #4b5c72;
+  font-size: 13px;
+}
+
+.applications-list__empty {
+  padding: 24px;
+  text-align: center;
+}
+
+/* Trống / lỗi */
+.applications-empty,
+.applications-message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 560px;
+  margin-top: 20px;
+  padding: 28px;
+}
+
+.applications-empty h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.applications-message p {
+  margin: 0;
+}
+
+.applications-primary,
+.applications-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  border-radius: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.applications-primary {
+  border: 1px solid #087cff;
+  background: #087cff;
+  color: white;
+}
+
+.applications-outline {
+  border: 1px solid #dfe7f2;
+  background: white;
+  color: #26364b;
+}
+
+/* Màn hình nhỏ: mỗi đơn thành một thẻ */
+@media (max-width: 900px) {
+  .applications-list__head {
+    display: none;
+  }
+
+  .application-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 18px;
+  }
+
+  .application-row__job {
+    grid-column: 1 / -1;
+  }
+
+  .application-row__date {
+    grid-column: 1;
+    font-size: 13px;
+  }
+
+  .application-row__label {
+    display: inline;
+    margin-right: 6px;
+    color: #8a99ad;
+  }
+
+  .application-row__status {
+    grid-column: 1;
+  }
+
+  .application-toggle {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .applications-page {
+    padding: 20px 16px;
+  }
+
+  .application-row__job p {
+    white-space: normal;
+  }
+}
