@@ -12,6 +12,7 @@ import SidebarCandidate from "./components/SidebarCandidate";
 import JobsPage from "./pages/candidate/JobsPage";
 import JobDetailPage from "./pages/candidate/JobDetailPage";
 import ProfilePage from "./pages/candidate/ProfilePage";
+import ApplicationsPage from "./pages/candidate/ApplicationsPage";
 
 // Admin Components (khu vực quản trị /admin)
 import AdminLayout from "./components/admin/AdminLayout.jsx";
@@ -30,6 +31,7 @@ import { getCurrentUser, logout } from "./services/authService";
 const ROUTE_PAGES = {
     "/discover": { id: "discover", label: "Khám phá việc làm" },
     "/profile": { id: "profile", label: "Hồ sơ của tôi" },
+    "/applications": { id: "applications", label: "Việc đã ứng tuyển" },
 };
 
 export default function App() {
@@ -206,6 +208,12 @@ export default function App() {
                                 }
                             />
                         }
+                    />
+
+                    {/* Việc đã ứng tuyển: userId để đánh dấu cập nhật mới theo từng tài khoản */}
+                    <Route
+                        path="/applications"
+                        element={<ApplicationsPage userId={currentUser?.id} />}
                     />
 
                     {/* --- KHU VỰC ADMIN (không cần đăng nhập để xem thử: dữ liệu mẫu
