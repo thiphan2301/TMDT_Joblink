@@ -25,8 +25,13 @@ function jsonOptions(method, body) {
 
 /* ---------------- Tổng quan ---------------- */
 
-export function getAdminOverview() {
-  return request("/api/admin/overview");
+// from/to (yyyy-mm-dd) không bắt buộc: khoảng ngày xem tăng trưởng.
+export function getAdminOverview(from, to) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return request(`/api/admin/overview${qs ? `?${qs}` : ""}`);
 }
 
 /* ---------------- Người dùng ---------------- */
@@ -41,6 +46,10 @@ export async function createAdminUser(payload) {
 
 export async function updateAdminUser(id, payload) {
   return request(`/api/admin/users/${id}`, jsonOptions("PUT", payload));
+}
+
+export async function changeAdminUserPassword(id, newPassword) {
+  return request(`/api/admin/users/${id}/password`, jsonOptions("PATCH", { newPassword }));
 }
 
 export async function setAdminUserStatus(id, status) {
@@ -83,9 +92,16 @@ export function getAdminJobApplications(jobId) {
 
 /* ---------------- Báo cáo ---------------- */
 
-// period: "month" (tháng hiện tại) | "3months" | "6months"
-export function getAdminReport(period = "6months") {
-  return request(`/api/admin/reports?period=${encodeURIComponent(period)}`);
+// period: "month" (tháng hiện tại) | "3months" | "6months".
+// Có from/to thì khoảng ngày được ưu tiên, period bị bỏ qua ở backend.
+// Nhận chuỗi (period cũ) hoặc object { period, from, to }.
+export function getAdminReport(options = {}) {
+  const { period = "6months", from, to } =
+    typeof options === "string" ? { period: options } : options;
+  const params = new URLSearchParams({ period });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  return request(`/api/admin/reports?${params.toString()}`);
 }
 
 /* ---------------- Gói dịch vụ ---------------- */

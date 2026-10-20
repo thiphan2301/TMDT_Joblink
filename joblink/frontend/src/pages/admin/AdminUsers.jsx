@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { AdminPageHeader } from "../../components/admin/AdminLayout.jsx";
 import { AdminModal, ConfirmDelete, FieldLabel } from "../../components/admin/AdminModal.jsx";
-import { IconPlus, IconEdit, IconLock, IconUnlock, IconTrash, IconCheck } from "../../components/admin/AdminIcons.jsx";
+import { IconPlus, IconEdit, IconLock, IconUnlock, IconTrash, IconCheck, IconKey } from "../../components/admin/AdminIcons.jsx";
 import { ROLE_LABELS, initialsOf } from "../../components/admin/adminFormat.js";
 import useAdminData from "../../hooks/useAdminData.js";
 import {
@@ -10,6 +10,7 @@ import {
   updateAdminUser,
   setAdminUserStatus,
   deleteAdminUser,
+  changeAdminUserPassword,
 } from "../../services/adminService.js";
 
 const ROLE_FILTERS = [
@@ -28,6 +29,8 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [editing, setEditing] = useState(null); // null: đóng; {}: thêm mới; user: sửa
   const [deleting, setDeleting] = useState(null);
+  const [passwordUser, setPasswordUser] = useState(null); // user đang được đổi mật khẩu
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -88,6 +91,7 @@ export default function AdminUsers() {
       />
       {error && <p className="admin-error">{error}</p>}
       {actionError && <p className="admin-error">{actionError}</p>}
+      {notice && <p className="admin-success-note">{notice}</p>}
 
       <div className="admin-card-table">
         <div className="admin-card-table__toolbar">
@@ -142,6 +146,9 @@ export default function AdminUsers() {
                       <button type="button" className="admin-icon-btn" onClick={() => setEditing(u)} aria-label={`Sửa ${u.fullName}`} disabled={busy}>
                         <IconEdit size={18} />
                       </button>
+                      <button type="button" className="admin-icon-btn" onClick={() => setPasswordUser(u)} aria-label={`Đổi mật khẩu ${u.fullName}`} disabled={busy}>
+                        <IconKey size={18} />
+                      </button>
                       <button
                         type="button" className="admin-icon-btn"
                         onClick={() => handleToggleLock(u)}
@@ -164,6 +171,17 @@ export default function AdminUsers() {
           </table>
         )}
       </div>
+
+      {passwordUser && (
+        <ChangePasswordModal
+          user={passwordUser}
+          onClose={() => setPasswordUser(null)}
+          onDone={() => {
+            setNotice(`Đã đổi mật khẩu cho tài khoản ${passwordUser.email}.`);
+            setPasswordUser(null);
+          }}
+        />
+      )}
 
       {editing !== null && (
         <UserFormModal
@@ -239,6 +257,54 @@ function UserFormModal({ user, busy, onClose, onSave }) {
         {formError && <p className="admin-form-error">{formError}</p>}
         <button type="submit" className="admin-btn admin-btn--primary" style={{ justifyContent: "center" }} disabled={busy}>
           {busy ? "Đang lưu..." : <>Lưu thông tin <IconCheck size={18} /></>}
+        </button>
+      </form>
+    </AdminModal>
+  );
+}
+
+// Modal admin đặt lại mật khẩu cho một tài khoản: nhập mật khẩu mới 2 lần,
+// gửi PATCH /api/admin/users/{id}/password (backend băm BCrypt rồi lưu).
+function ChangePasswordModal({ user, onClose, onDone }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (password.length < 6) return setFormError("Mật khẩu mới cần ít nhất 6 ký tự.");
+    if (password !== confirm) return setFormError("Mật khẩu nhập lại chưa khớp.");
+    setSaving(true);
+    setFormError("");
+    try {
+      await changeAdminUserPassword(user.id, password);
+      onDone();
+    } catch (err) {
+      setFormError(err.message || "Không đổi được mật khẩu.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <AdminModal title={`Đổi mật khẩu — ${user.fullName}`} onClose={onClose}>
+      <form className="admin-form" onSubmit={submit}>
+        <p className="admin-table__muted" style={{ margin: 0 }}>
+          Đặt mật khẩu mới cho tài khoản <strong>{user.email}</strong>. Mật khẩu cũ
+          không cần nhập và sẽ bị thay thế ngay khi lưu.
+        </p>
+        <label className="admin-field">
+          <FieldLabel required>Mật khẩu mới</FieldLabel>
+          <input className="admin-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+        </label>
+        <label className="admin-field">
+          <FieldLabel required>Nhập lại mật khẩu mới</FieldLabel>
+          <input className="admin-input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+        </label>
+        {formError && <p className="admin-form-error">{formError}</p>}
+        <button type="submit" className="admin-btn admin-btn--primary" style={{ justifyContent: "center" }} disabled={saving}>
+          {saving ? "Đang lưu..." : <>Lưu mật khẩu <IconKey size={18} /></>}
         </button>
       </form>
     </AdminModal>
