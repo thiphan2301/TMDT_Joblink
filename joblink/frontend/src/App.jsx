@@ -6,12 +6,42 @@ import Login from './pages/auth/Login.jsx';
 import Register from './pages/auth/register.jsx';
 
 // Candidate Components
-import Header from "./components/Header.jsx";
-import DiscoverJobs from "./pages/candidate/DiscoverJobs";
-import SidebarCandidate from "./components/SidebarCandidate";
-import JobsPage from "./pages/candidate/JobsPage";
-import JobDetailPage from "./pages/candidate/JobDetailPage";
 import ProfilePage from "./pages/candidate/ProfilePage";
+
+// Các trang công khai theo thiết kế mới nhất (trang chủ Khám phá,
+// danh sách việc làm, chi tiết việc làm, trang công ty) kèm thanh
+// trên cùng và chân trang mới — thay cho Header/Sidebar cũ và ba
+// trang DiscoverJobs/JobsPage/JobDetailPage trước đây.
+import PublicHeader from "./components/candidate/PublicHeader.jsx";
+import PublicFooter from "./components/candidate/PublicFooter.jsx";
+import HomePage from "./pages/candidate/HomePage.jsx";
+import JobsListPage from "./pages/candidate/JobsListPage.jsx";
+import JobDetailView from "./pages/candidate/JobDetailView.jsx";
+import CompanyPage from "./pages/candidate/CompanyPage.jsx";
+
+// Khu vực ứng viên theo thiết kế mới (thanh bên trái cố định):
+// Tổng quan, Tin nhắn realtime, Trợ lý AI, Ví Token; mục chưa có
+// thiết kế được yêu cầu thì để trống (CandidateEmptyPage).
+import CandidateLayout from "./components/candidate/CandidateLayout.jsx";
+import CandidateDashboard from "./pages/candidate/CandidateDashboard.jsx";
+import MessagesPage from "./pages/candidate/MessagesPage.jsx";
+import AssistantPage from "./pages/candidate/AssistantPage.jsx";
+import CandidateWalletPage from "./pages/candidate/CandidateWalletPage.jsx";
+import CandidateEmptyPage from "./pages/candidate/CandidateEmptyPage.jsx";
+
+// Employer Components (khu vực nhà tuyển dụng /employer)
+import EmployerLayout from "./components/employer/EmployerLayout.jsx";
+import EmployerDashboard from "./pages/employer/EmployerDashboard.jsx";
+import EmployerJobs from "./pages/employer/EmployerJobs.jsx";
+import EmployerJobEdit from "./pages/employer/EmployerJobEdit.jsx";
+import EmployerApplications from "./pages/employer/EmployerApplications.jsx";
+import EmployerCandidates from "./pages/employer/EmployerCandidates.jsx";
+import EmployerCandidateDetail from "./pages/employer/EmployerCandidateDetail.jsx";
+import EmployerCompany from "./pages/employer/EmployerCompany.jsx";
+import EmployerReviews from "./pages/employer/EmployerReviews.jsx";
+import EmployerPlan from "./pages/employer/EmployerPlan.jsx";
+import EmployerWallet from "./pages/employer/EmployerWallet.jsx";
+import ChatPage from "./pages/chat/ChatPage.jsx";
 
 // Admin Components (khu vực quản trị /admin)
 import AdminLayout from "./components/admin/AdminLayout.jsx";
@@ -23,14 +53,7 @@ import AdminReports from "./pages/admin/AdminReports.jsx";
 import AdminPackages from "./pages/admin/AdminPackages.jsx";
 
 // Services
-import { getCurrentUser, logout } from "./services/authService";
-
-// Trang ứng với URL: giữ đúng tiêu đề Header và mục sáng trên Sidebar
-// khi tải lại trang hoặc mở link trực tiếp.
-const ROUTE_PAGES = {
-    "/discover": { id: "discover", label: "Khám phá việc làm" },
-    "/profile": { id: "profile", label: "Hồ sơ của tôi" },
-};
+import { getCurrentUser } from "./services/authService";
 
 export default function App() {
     // --- STATE ĐĂNG NHẬP ---
@@ -39,16 +62,8 @@ export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [, setAuthLoading] = useState(true);
 
-    // --- STATE ỨNG DỤNG CHÍNH ---
-    const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [selectedPage, setSelectedPage] = useState({
-        id: "discover",
-        label: "Khám phá việc làm",
-    });
-
     const navigate = useNavigate();
     const location = useLocation();
-    const currentPage = ROUTE_PAGES[location.pathname] || selectedPage;
 
     // Scroll to top khi đổi route
     useEffect(() => {
@@ -58,7 +73,7 @@ export default function App() {
     // Khôi phục phiên đăng nhập (cookie session) khi tải lại trang
     useEffect(() => {
         let cancelled = false;
-            async function restoreSession() {
+        async function restoreSession() {
             try {
                 const user = await getCurrentUser();
 
@@ -87,17 +102,6 @@ export default function App() {
     }, []);
 
     // --- HANDLERS ---
-    function handleSelectPage(item) {
-        setSelectedPage(item);
-        setSidebarOpen(false);
-
-        if (item.id === "discover") {
-            navigate("/discover");
-        } else {
-            navigate(`/${item.id}`);
-        }
-    }
-
     // Hàm gọi khi đăng nhập thành công (user: thông tin backend trả về, nếu có)
     function handleLoginSuccess(user) {
         if (!user?.id || !user?.role) {
@@ -114,24 +118,21 @@ export default function App() {
             return;
         }
 
-        // Chỉ nhận đường dẫn chi tiết việc làm trong ứng dụng
+        // Nhà tuyển dụng vào thẳng khu vực của mình
+        if (user.role === "employer") {
+            navigate("/employer", { replace: true });
+            return;
+        }
+
+        // Chỉ nhận đường dẫn chi tiết việc làm trong ứng dụng;
+        // còn lại ứng viên vào thẳng trang Tổng quan theo thiết kế
+        // mới (khu vực có thanh bên trái) thay vì trang Khám phá cũ.
         const returnTo = location.state?.returnTo;
         const destination =
             typeof returnTo === "string" &&
-            /^\/jobs\/\d+$/.test(returnTo) ? returnTo : "/discover";
+            /^\/jobs\/\d+$/.test(returnTo) ? returnTo : "/dashboard";
 
         navigate(destination, { replace: true });
-    }
-    // xử lý hết hạn phiên
-    async function handleLogout() {
-        try {
-            await logout();
-        } catch {
-            // Vẫn đăng xuất ở giao diện kể cả khi không gọi được backend
-        }
-        setCurrentUser(null);
-        setIsAuthenticated(false);
-        navigate("/login");
     }
 
     // --- KIỂM TRA ROUTE HIỆN TẠI ---
@@ -140,30 +141,24 @@ export default function App() {
     // Khu vực admin có Header/Sidebar riêng (trong AdminLayout) nên cũng ẩn
     // Header và Sidebar ứng viên, giống trang auth.
     const isAdminPage = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
+    // Khu vực nhà tuyển dụng cũng có khung riêng (EmployerLayout).
+    const isEmployerPage = location.pathname === '/employer' || location.pathname.startsWith('/employer/');
+    // Khu vực ứng viên theo thiết kế mới có khung riêng (thanh trên
+    // cùng + thanh bên trái trong CandidateLayout) nên cũng ẩn
+    // Header và Sidebar cũ, giống khu vực admin/nhà tuyển dụng.
+    const CANDIDATE_AREA = ['/dashboard', '/profile', '/cv', '/viec-lam-phu-hop',
+        '/viec-lam-da-luu', '/viec-lam-da-ung-tuyen', '/tin-nhan', '/messages',
+        '/tro-ly-ai', '/vi-token', '/cai-dat'];
+    const isCandidateArea = CANDIDATE_AREA.some((p) =>
+        location.pathname === p || location.pathname.startsWith(p + '/'));
+
+    // Trang công khai theo thiết kế mới dùng thanh trên cùng +
+    // chân trang riêng (PublicHeader/PublicFooter).
+    const showPublicChrome = !isAuthPage && !isAdminPage && !isEmployerPage && !isCandidateArea;
 
     return (
         <>
-            {/* Chỉ hiển thị Header & Sidebar khi KHÔNG PHẢI ở trang đăng nhập/đăng ký và KHÔNG ở khu vực admin */}
-            {!isAuthPage && !isAdminPage && (
-                <>
-                    <Header
-                        onOpenSidebar={() => setSidebarOpen(true)}
-                        pageTitle={currentPage.label}
-                        isAuthenticated={isAuthenticated} // Truyền state này xuống Header để Header biết hiển thị nút "Đăng nhập" hay "Avatar user"
-                        userName={currentUser?.fullName || currentUser?.email}
-                        userRole={currentUser?.role}
-                        avatarUrl={currentUser?.avatar}
-                        onLogout={handleLogout}
-                    />
-
-                    <SidebarCandidate
-                        isOpen={sidebarOpen}
-                        onClose={() => setSidebarOpen(false)}
-                        activeItem={currentPage.id}
-                        onSelect={handleSelectPage}
-                    />
-                </>
-            )}
+            {showPublicChrome && <PublicHeader />}
 
             <main style={{ flex: 1, minWidth: 0 }}>
                 <Routes>
@@ -189,24 +184,58 @@ export default function App() {
 
                     {/* --- CÁC ROUTE MAIN (Cho phép xem trước khi đăng nhập) --- */}
                     <Route path="/" element={<Navigate to="/discover" replace />} />
-                    <Route path="/discover" element={<DiscoverJobs />} />
-                    <Route path="/jobs" element={<JobsPage />} />
-                    <Route path="/jobs/:id" element={<JobDetailPage />} />
-                    <Route
-                        path="/profile"
-                        element={
-                            <ProfilePage
-                                // Lưu xong thì cập nhật tên, ảnh trên Header
-                                onProfileUpdated={(profile) =>
-                                    setCurrentUser((user) =>
-                                        user
-                                            ? { ...user, fullName: profile.fullName, avatar: profile.avatar }
-                                            : user
-                                    )
-                                }
-                            />
-                        }
-                    />
+                    <Route path="/discover" element={<HomePage />} />
+                    <Route path="/jobs" element={<JobsListPage />} />
+                    <Route path="/jobs/:id" element={<JobDetailView />} />
+                    <Route path="/cong-ty/:id" element={<CompanyPage />} />
+
+                    {/* --- KHU VỰC ỨNG VIÊN (thanh bên trái theo thiết kế
+                         mới). Hồ sơ dùng lại ProfilePage hiện có; các mục
+                         chưa có thiết kế được yêu cầu thì để trống --- */}
+                    <Route element={<CandidateLayout />}>
+                        <Route path="/dashboard" element={<CandidateDashboard />} />
+                        <Route
+                            path="/profile"
+                            element={
+                                <ProfilePage
+                                    // Lưu xong thì cập nhật tên, ảnh trên Header
+                                    onProfileUpdated={(profile) =>
+                                        setCurrentUser((user) =>
+                                            user
+                                                ? { ...user, fullName: profile.fullName, avatar: profile.avatar }
+                                                : user
+                                        )
+                                    }
+                                />
+                            }
+                        />
+                        <Route path="/cv" element={<CandidateEmptyPage />} />
+                        <Route path="/viec-lam-phu-hop" element={<CandidateEmptyPage />} />
+                        <Route path="/viec-lam-da-luu" element={<CandidateEmptyPage />} />
+                        <Route path="/viec-lam-da-ung-tuyen" element={<CandidateEmptyPage />} />
+                        <Route path="/tin-nhan" element={<MessagesPage />} />
+                        <Route path="/messages" element={<Navigate to="/tin-nhan" replace />} />
+                        <Route path="/tro-ly-ai" element={<AssistantPage />} />
+                        <Route path="/vi-token" element={<CandidateWalletPage />} />
+                        <Route path="/cai-dat" element={<CandidateEmptyPage />} />
+                    </Route>
+
+                    {/* --- KHU VỰC NHÀ TUYỂN DỤNG (backend kiểm tra role
+                         employer ở từng API /api/employer/**) --- */}
+                    <Route path="/employer" element={<EmployerLayout />}>
+                        <Route index element={<EmployerDashboard />} />
+                        <Route path="jobs" element={<EmployerJobs />} />
+                        <Route path="jobs/new" element={<EmployerJobEdit />} />
+                        <Route path="jobs/:id/edit" element={<EmployerJobEdit />} />
+                        <Route path="applications" element={<EmployerApplications />} />
+                        <Route path="candidates" element={<EmployerCandidates />} />
+                        <Route path="candidates/:id" element={<EmployerCandidateDetail />} />
+                        <Route path="chat" element={<ChatPage />} />
+                        <Route path="company" element={<EmployerCompany />} />
+                        <Route path="reviews" element={<EmployerReviews />} />
+                        <Route path="plan" element={<EmployerPlan />} />
+                        <Route path="wallet" element={<EmployerWallet />} />
+                    </Route>
 
                     {/* --- KHU VỰC ADMIN (không cần đăng nhập để xem thử: dữ liệu mẫu
                          tự hiện khi backend chưa trả dữ liệu; muốn chặn theo role thì
@@ -231,6 +260,8 @@ export default function App() {
                     />
                 </Routes>
             </main>
+
+            {showPublicChrome && <PublicFooter />}
         </>
     );
 }
