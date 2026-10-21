@@ -8,10 +8,25 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ApplicationRepository
         extends JpaRepository<Application, Integer> {
+
+    // Đơn ứng tuyển của một ứng viên, đơn mới cập nhật lên đầu;
+    // tải kèm tin tuyển dụng, công ty và CV để không phát sinh thêm truy vấn.
+    @Query("""
+        SELECT a
+        FROM Application a
+        JOIN FETCH a.job j
+        JOIN FETCH j.company
+        JOIN FETCH a.cv
+        WHERE a.candidate.userId = :candidateId
+        ORDER BY a.updatedAt DESC, a.id DESC
+        """)
+    List<Application> findAllByCandidate(
+            @Param("candidateId") Integer candidateId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

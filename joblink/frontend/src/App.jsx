@@ -7,6 +7,7 @@ import Register from './pages/auth/register.jsx';
 
 // Candidate Components
 import ProfilePage from "./pages/candidate/ProfilePage";
+import ApplicationsPage from "./pages/candidate/ApplicationsPage";
 
 // Các trang công khai theo thiết kế mới nhất (trang chủ Khám phá,
 // danh sách việc làm, chi tiết việc làm, trang công ty) kèm thanh
@@ -53,7 +54,15 @@ import AdminReports from "./pages/admin/AdminReports.jsx";
 import AdminPackages from "./pages/admin/AdminPackages.jsx";
 
 // Services
-import { getCurrentUser } from "./services/authService";
+import { getCurrentUser, logout } from "./services/authService";
+
+// Trang ứng với URL: giữ đúng tiêu đề Header và mục sáng trên Sidebar
+// khi tải lại trang hoặc mở link trực tiếp.
+const ROUTE_PAGES = {
+    "/discover": { id: "discover", label: "Khám phá việc làm" },
+    "/profile": { id: "profile", label: "Hồ sơ của tôi" },
+    "/applications": { id: "applications", label: "Việc đã ứng tuyển" },
+};
 
 export default function App() {
     // --- STATE ĐĂNG NHẬP ---
@@ -236,6 +245,12 @@ export default function App() {
                         <Route path="plan" element={<EmployerPlan />} />
                         <Route path="wallet" element={<EmployerWallet />} />
                     </Route>
+
+                    {/* Việc đã ứng tuyển: userId để đánh dấu cập nhật mới theo từng tài khoản */}
+                    <Route
+                        path="/applications"
+                        element={<ApplicationsPage userId={currentUser?.id} />}
+                    />
 
                     {/* --- KHU VỰC ADMIN (không cần đăng nhập để xem thử: dữ liệu mẫu
                          tự hiện khi backend chưa trả dữ liệu; muốn chặn theo role thì
