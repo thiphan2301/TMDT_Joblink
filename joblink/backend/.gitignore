@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+#Database
+/joblink/.env
+/joblink/backend/src/main/resources/application.properties
+/joblink/backend/src/main/resources/application-local.properties
