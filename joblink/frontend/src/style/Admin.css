@@ -225,6 +225,14 @@
 .admin-badge--blue { background: #e8f1fe; color: var(--a-primary); }
 .admin-badge--green { background: #e6f7ee; color: #0a7a42; }
 .admin-badge--red { background: #fdecec; color: #d92d20; }
+.admin-badge--gold { background: #fef3c7; color: #b45309; }
+.admin-badge--gray { background: #eef1f4; color: #64748b; }
+
+/* Tin của nhà tuyển dụng Pro: nền vàng nhạt để nổi bật trong danh sách */
+.admin-table tbody tr.admin-row--pro { background: #fffbeb; }
+
+/* Tin của nhà tuyển dụng Premium: nền xanh dương nhạt */
+.admin-table tbody tr.admin-row--premium { background: #eff6ff; }
 .admin-badge--gray { background: #eef1f5; color: #64748b; }
 .admin-badge--amber { background: #fff4e0; color: #b54708; }
 .admin-status-select {

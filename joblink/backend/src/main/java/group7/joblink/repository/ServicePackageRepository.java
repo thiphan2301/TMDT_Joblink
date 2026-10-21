@@ -12,8 +12,11 @@ public interface ServicePackageRepository
     // Danh sách gói ở trang quản lý gói: rẻ trước, đắt sau.
     List<ServicePackage> findAllByOrderByPriceAsc();
 
-    // Số lượt đăng ký đang còn hiệu lực của từng gói (bảng subscriptions
-    // chưa có entity nên đếm bằng SQL thuần, trả [package_id, số lượng]).
+    // Tìm gói theo đúng tên (admin cấp gói "Pro" cho nhà tuyển dụng).
+    java.util.Optional<ServicePackage> findByName(String name);
+
+    // Số lượt đăng ký đang còn hiệu lực của từng gói (đếm bằng SQL thuần
+    // cho gọn, trả [package_id, số lượng]).
     @Query(value = """
         SELECT package_id, COUNT(*)
         FROM subscriptions

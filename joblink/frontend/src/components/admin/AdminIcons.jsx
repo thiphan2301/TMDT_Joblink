@@ -82,3 +82,6 @@ export const IconKey = (p) => (
 export const IconLogout = (p) => (
   <svg {...base(p)}><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></svg>
 );
+export const IconCrown = (p) => (
+  <svg {...base(p)}><path d="m3 8.5 4.2 3.7L12 5l4.8 7.2L21 8.5l-1.7 9.5H4.7L3 8.5Z" /><path d="M5.5 21h13" /></svg>
+);

@@ -26,7 +26,9 @@ export function GrowthChart({ data }) {
   const W = 640;
   const H = 260;
   const PAD = { l: 36, r: 8, t: 10, b: 26 };
-  const max = Math.max(200, ...data.map((d) => d.newUsers)) * 1.15;
+  // Thang đo bám theo dữ liệu thật (sàn 10) — trước đây sàn 200 khiến
+  // dữ liệu nhỏ (vài người dùng) bị ép sát đáy, nhìn như không có đường.
+  const max = Math.max(10, ...data.map((d) => Math.max(d.newUsers, d.newJobs))) * 1.15;
   const x = (i) => PAD.l + (i * (W - PAD.l - PAD.r)) / Math.max(1, data.length - 1);
   const y = (v) => PAD.t + (1 - v / max) * (H - PAD.t - PAD.b);
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(max * f));
@@ -43,9 +45,15 @@ export function GrowthChart({ data }) {
           <text x={PAD.l - 8} y={y(t) + 4} textAnchor="end" className="admin-chart__tick">{t}</text>
         </g>
       ))}
-      <path d={area} fill="#0071e3" opacity="0.07" />
+      {data.length > 1 && <path d={area} fill="#0071e3" opacity="0.07" />}
       <path d={smoothPath(jobPts)} fill="none" stroke="#3aa78c" strokeWidth="2.5" />
       <path d={smoothPath(userPts)} fill="none" stroke="#0071e3" strokeWidth="2.5" />
+      {data.length === 1 && (
+        <>
+          <circle cx={jobPts[0].x} cy={jobPts[0].y} r="4" fill="#3aa78c" />
+          <circle cx={userPts[0].x} cy={userPts[0].y} r="4" fill="#0071e3" />
+        </>
+      )}
       {data.map((d, i) => (
         <text key={d.month} x={x(i)} y={H - 6} textAnchor="middle" className="admin-chart__tick">{d.month}</text>
       ))}

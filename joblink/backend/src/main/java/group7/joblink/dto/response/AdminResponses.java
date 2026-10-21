@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 // Toàn bộ DTO trả về cho khu vực admin, gom trong 1 file để dễ theo dõi.
-// Tên field khớp đúng với dữ liệu các trang frontend (adminMock.js / adminService.js).
+// Tên field khớp đúng với dữ liệu các trang frontend (adminService.js).
 public final class AdminResponses {
 
     private AdminResponses() {
@@ -54,7 +54,8 @@ public final class AdminResponses {
         String email,
         String role,       // candidate | employer | admin
         String status,     // active | locked
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String plan        // chỉ với employer: "premium" | "pro" | "basic"; còn lại null
     ) {
     }
 
@@ -79,7 +80,8 @@ public final class AdminResponses {
         LocalDateTime createdAt,
         LocalDateTime expiresAt,       // createdAt + displayDays
         Integer employerWalletBalance, // số dư ví Token của nhà tuyển dụng sở hữu tin
-        long applicants
+        long applicants,
+        String employerPlan            // gói của nhà sở hữu tin: "premium" | "pro" | "basic" | null
     ) {
     }
 
