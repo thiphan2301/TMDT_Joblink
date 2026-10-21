@@ -101,9 +101,21 @@ export default function AdminJobs() {
             </thead>
             <tbody>
               {filtered.map((job) => (
-                <tr key={job.id}>
+                <tr
+                  key={job.id}
+                  className={job.employerPlan === "premium" ? "admin-row--premium"
+                    : job.employerPlan === "pro" ? "admin-row--pro" : undefined}
+                >
                   <td>
-                    <div className="admin-table__title">{job.title}</div>
+                    <div className="admin-table__title">
+                      {job.title}
+                      {job.employerPlan === "premium" && (
+                        <span className="admin-badge admin-badge--blue" style={{ marginLeft: 8 }}>PREMIUM</span>
+                      )}
+                      {job.employerPlan === "pro" && (
+                        <span className="admin-badge admin-badge--gold" style={{ marginLeft: 8 }}>PRO</span>
+                      )}
+                    </div>
                     <div className="admin-table__sub">{job.companyName} · {salaryTextOf(job)}</div>
                   </td>
                   <td className="admin-table__muted">{job.location}</td>

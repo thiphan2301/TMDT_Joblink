@@ -52,6 +52,11 @@ export async function changeAdminUserPassword(id, newPassword) {
   return request(`/api/admin/users/${id}/password`, jsonOptions("PATCH", { newPassword }));
 }
 
+// Cấp gói Pro / hạ về Basic cho nhà tuyển dụng.
+export async function setAdminUserPlan(id, plan) {
+  return request(`/api/admin/users/${id}/plan`, jsonOptions("PATCH", { plan }));
+}
+
 export async function setAdminUserStatus(id, status) {
   return request(`/api/admin/users/${id}/status`, jsonOptions("PATCH", { status }));
 }

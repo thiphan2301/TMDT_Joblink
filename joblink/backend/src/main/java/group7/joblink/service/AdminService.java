@@ -8,11 +8,13 @@ import group7.joblink.entity.Job;
 import group7.joblink.entity.Order;
 import group7.joblink.entity.Promotion;
 import group7.joblink.entity.ServicePackage;
+import group7.joblink.entity.Subscription;
 import group7.joblink.entity.TokenPackage;
 import group7.joblink.entity.User;
 import group7.joblink.repository.AdminCandidateProfileRepository;
 import group7.joblink.repository.AdminJobRepository;
 import group7.joblink.repository.AdminSocialAccountRepository;
+import group7.joblink.repository.AdminSubscriptionRepository;
 import group7.joblink.repository.AdminUserRepository;
 import group7.joblink.repository.CompanyRepository;
 import group7.joblink.repository.OrderRepository;
@@ -70,6 +72,7 @@ public class AdminService {
     private final ServicePackageRepository packageRepository;
     private final TokenPackageRepository tokenPackageRepository;
     private final PromotionRepository promotionRepository;
+    private final AdminSubscriptionRepository subscriptionRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     // flush() chủ động sau các thao tác xóa/lưu có thể vi phạm khóa ngoại,
@@ -86,7 +89,8 @@ public class AdminService {
                         OrderRepository orderRepository,
                         ServicePackageRepository packageRepository,
                         TokenPackageRepository tokenPackageRepository,
-                        PromotionRepository promotionRepository) {
+                        PromotionRepository promotionRepository,
+                        AdminSubscriptionRepository subscriptionRepository) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.socialAccountRepository = socialAccountRepository;
@@ -96,6 +100,7 @@ public class AdminService {
         this.packageRepository = packageRepository;
         this.tokenPackageRepository = tokenPackageRepository;
         this.promotionRepository = promotionRepository;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     /* ---------------- Tổng quan & báo cáo ---------------- */
@@ -110,6 +115,11 @@ public class AdminService {
     @Transactional(readOnly = true)
     public Overview getOverview(LocalDate from, LocalDate to) {
         LocalDate today = LocalDate.now(VIETNAM_ZONE);
+        // Có chọn khoảng ngày hay không: thẻ số liệu mặc định tính tháng
+        // hiện tại, nhưng biểu đồ tăng trưởng mặc định phải đủ 6 tháng —
+        // nếu lấy theo tháng hiện tại thì biểu đồ chỉ có 1 điểm, không
+        // vẽ thành đường được.
+        boolean explicitRange = from != null || to != null;
         LocalDate rangeFrom = from;
         LocalDate rangeTo = to;
         if (rangeFrom == null && rangeTo == null) {
@@ -153,7 +163,7 @@ public class AdminService {
                 revenueInRange,
                 growthPercent(revenueInRange, revenueInPrev),
                 userRepository.countByStatus(User.Status.locked),
-                monthlySeries(rangeFrom, rangeTo),
+                explicitRange ? monthlySeries(rangeFrom, rangeTo) : monthlySeries(6),
                 distribution()
         );
     }
@@ -271,21 +281,64 @@ public class AdminService {
                 companyNames.putIfAbsent(toInt(row[0]), str(row[1]));
             }
         }
+        Map<Integer, String> planByEmployer = employerPlanMap();
         return users.stream()
-                .map(u -> toUserRow(u, profileNames, companyNames))
+                .map(u -> toUserRow(u, profileNames, companyNames, planByEmployer))
                 .toList();
     }
 
     private UserRow toUserRow(User user, Map<Integer, String> profileNames,
-                              Map<Integer, String> companyNames) {
+                              Map<Integer, String> companyNames,
+                              Map<Integer, String> planByEmployer) {
+        // Gói dịch vụ chỉ áp dụng cho nhà tuyển dụng: không có lượt đăng
+        // ký trả phí đang hiệu lực = đang dùng Basic (miễn phí, mặc định).
+        String plan = null;
+        if (user.getRole() == User.Role.employer) {
+            plan = planByEmployer != null
+                    ? planByEmployer.getOrDefault(user.getId(), "basic")
+                    : employerPlanMap().getOrDefault(user.getId(), "basic");
+        }
         return new UserRow(
                 user.getId(),
                 displayName(user, profileNames, companyNames),
                 user.getEmail(),
                 user.getRole().name(),
                 user.getStatus().name(),
-                user.getCreatedAt()
+                user.getCreatedAt(),
+                plan
         );
+    }
+
+    // Gói đang hiệu lực của từng nhà tuyển dụng: "premium" khi đăng ký
+    // gói tên Premium, "pro" khi gói đăng ký có quyền ưu tiên tin đăng
+    // (can_prioritize_jobs), ngược lại "basic". Một nhà có nhiều lượt
+    // đăng ký hiệu lực thì lấy gói cao nhất (premium > pro > basic).
+    private Map<Integer, String> employerPlanMap() {
+        Map<Integer, String> map = new HashMap<>();
+        for (Object[] row : subscriptionRepository.findActivePlans(LocalDateTime.now())) {
+            Integer employerId = toInt(row[0]);
+            boolean priority = row[2] instanceof Boolean b && b;
+            String plan = "Premium".equals(str(row[1])) ? "premium"
+                    : priority ? "pro" : "basic";
+            String current = map.get(employerId);
+            if (current == null || planRank(plan) > planRank(current)) {
+                map.put(employerId, plan);
+            }
+        }
+        return map;
+    }
+
+    private static int planRank(String plan) {
+        return switch (plan) {
+            case "premium" -> 3;
+            case "pro" -> 2;
+            default -> 1;
+        };
+    }
+
+    // Gói trả phí (Pro / Premium) đều được ưu tiên + nổi bật tin đăng.
+    private static boolean isPriorityPlan(String plan) {
+        return "pro".equals(plan) || "premium".equals(plan);
     }
 
     // Tên hiển thị: ứng viên lấy từ candidate_profiles, nhà tuyển dụng lấy
@@ -315,7 +368,7 @@ public class AdminService {
     private UserRow findUserRow(int id) {
         User user = userRepository.findById(id).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng."));
-        return toUserRow(user, null, null);
+        return toUserRow(user, null, null, null);
     }
 
     private User findUserOrThrow(int id) {
@@ -416,6 +469,57 @@ public class AdminService {
         }
     }
 
+    // Admin cấp gói Pro / hạ về Basic cho một nhà tuyển dụng.
+    // Cấp Pro = tạo 1 đơn hàng ghi nhận (tổng tiền 0đ vì cấp tay, không
+    // tính doanh thu) + 1 lượt đăng ký đang hiệu lực tới hết thời hạn gói,
+    // đồng thời bật cờ ưu tiên / nổi bật cho mọi tin của nhà đó. Hạ Basic =
+    // hủy các lượt đăng ký đang hiệu lực và tắt 2 cờ đó.
+    @Transactional
+    public UserRow setEmployerPlan(int id, AdminPlanRequest req) {
+        User user = findUserOrThrow(id);
+        if (user.getRole() != User.Role.employer) {
+            throw badRequest("Gói dịch vụ chỉ áp dụng cho tài khoản nhà tuyển dụng.");
+        }
+        String plan = req == null ? null : req.plan();
+        if (!"pro".equals(plan) && !"basic".equals(plan) && !"premium".equals(plan)) {
+            throw badRequest("Gói không hợp lệ (chỉ có basic, pro hoặc premium).");
+        }
+
+        List<Subscription> active = subscriptionRepository
+                .findByEmployerIdAndStatus(id, Subscription.Status.active);
+
+        if ("basic".equals(plan)) {
+            active.forEach(Subscription::cancel);
+            subscriptionRepository.setEmployerJobFlags(id, false, false);
+            return findUserRow(id);
+        }
+
+        // Đang đúng gói được chọn rồi thì giữ nguyên, không tạo đăng ký trùng.
+        if (plan.equals(employerPlanMap().get(id))) {
+            return findUserRow(id);
+        }
+        String packageName = "premium".equals(plan) ? "Premium" : "Pro";
+        ServicePackage pkg = packageRepository.findByName(packageName).orElseThrow(() ->
+                badRequest("Chưa có gói " + packageName + " trong hệ thống. Hãy kiểm tra "
+                        + "migration gói dịch vụ đã chạy chưa, hoặc tạo gói tên \""
+                        + packageName + "\" ở trang Quản lý gói dịch vụ."));
+
+        active.forEach(Subscription::cancel);
+        LocalDateTime now = LocalDateTime.now();
+        String snapshot = "{\"name\":\"" + pkg.getName().replace("\\", "\\\\").replace("\"", "\\\"")
+                + "\",\"price\":" + pkg.getPrice().toPlainString()
+                + ",\"grantedByAdmin\":true}";
+        subscriptionRepository.insertGrantOrder(
+                "GRANT-" + id + "-" + System.currentTimeMillis(),
+                id, pkg.getId(), pkg.getPrice(), snapshot, now);
+        long orderId = subscriptionRepository.lastInsertId();
+        subscriptionRepository.save(new Subscription(
+                id, pkg.getId(), (int) orderId, now,
+                now.plusDays(pkg.getDurationDays() == null ? 30 : pkg.getDurationDays())));
+        subscriptionRepository.setEmployerJobFlags(id, true, true);
+        return findUserRow(id);
+    }
+
     /* ---------------- Tin tuyển dụng ---------------- */
 
     @Transactional(readOnly = true)
@@ -424,12 +528,26 @@ public class AdminService {
         Map<Integer, Long> applicantsByJob = countMap(jobRepository.countApplicationsByJob());
         Map<Integer, Integer> walletByJob = walletMap();
         Map<Integer, Integer[]> displayByJob = displayMap();
+        Map<Integer, Integer> ownerByCompany = new HashMap<>();
+        for (Object[] row : companyRepository.findCompanyOwners()) {
+            if (row[1] != null) {
+                ownerByCompany.put(toInt(row[0]), toInt(row[1]));
+            }
+        }
+        Map<Integer, String> planByEmployer = employerPlanMap();
         return jobs.stream()
                 .map(j -> toJobRow(j,
                         applicantsByJob.getOrDefault(j.getId(), 0L),
                         walletByJob.get(j.getId()),
-                        displayByJob.get(j.getId())))
+                        displayByJob.get(j.getId()),
+                        j.getCompany() == null ? null
+                                : planOf(ownerByCompany.get(j.getCompany().getId()), planByEmployer)))
                 .toList();
+    }
+
+    // Gói của chủ sở hữu một công ty (null khi công ty chưa có chủ).
+    private String planOf(Integer ownerId, Map<Integer, String> planByEmployer) {
+        return ownerId == null ? null : planByEmployer.getOrDefault(ownerId, "basic");
     }
 
     // Số dư ví Token theo từng tin, từ truy vấn native của AdminJobRepository.
@@ -486,6 +604,12 @@ public class AdminService {
         if (req.industry() != null && !req.industry().isBlank()) {
             companyRepository.updateIndustryById(req.companyId(), req.industry());
         }
+        // Tin mới của nhà Pro cũng phải được ưu tiên / nổi bật ngay.
+        companyRepository.findOwnerIdByCompanyId(req.companyId()).ifPresent(ownerId -> {
+            if (isPriorityPlan(employerPlanMap().get(ownerId))) {
+                subscriptionRepository.setEmployerJobFlags(ownerId, true, true);
+            }
+        });
     }
 
     @Transactional
@@ -510,8 +634,11 @@ public class AdminService {
         }
         Job fresh = findJobOrThrow(id);
         Map<Integer, Long> applicantsByJob = countMap(jobRepository.countApplicationsByJob());
+        Integer ownerId = fresh.getCompany() == null ? null
+                : companyRepository.findOwnerIdByCompanyId(fresh.getCompany().getId()).orElse(null);
         return toJobRow(fresh, applicantsByJob.getOrDefault(id, 0L),
-                walletMap().get(id), displayMap().get(id));
+                walletMap().get(id), displayMap().get(id),
+                planOf(ownerId, employerPlanMap()));
     }
 
     @Transactional
@@ -555,7 +682,7 @@ public class AdminService {
     }
 
     private JobRow toJobRow(Job job, long applicants, Integer employerWalletBalance,
-                            Integer[] displayInfo) {
+                            Integer[] displayInfo, String employerPlan) {
         LocalDateTime createdAt = job.getCreatedAt();
         BigDecimal min = job.getSalaryMin();
         BigDecimal max = job.getSalaryMax();
@@ -585,7 +712,8 @@ public class AdminService {
                 createdAt,
                 createdAt == null ? null : createdAt.plusDays(displayDays),
                 employerWalletBalance,
-                applicants
+                applicants,
+                employerPlan
         );
     }
 

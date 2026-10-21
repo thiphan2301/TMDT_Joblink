@@ -38,6 +38,16 @@ public interface CompanyRepository extends JpaRepository<Company, Integer> {
         """, nativeQuery = true)
     List<Object[]> findNamesByOwnerIds(@Param("ownerIds") Collection<Integer> ownerIds);
 
+    // Chủ sở hữu của một công ty (để biết tin đăng thuộc nhà tuyển dụng
+    // nào, nhà đó đang dùng gói Basic hay Pro...).
+    @Query(value = "SELECT owner_id FROM companies WHERE id = :companyId",
+            nativeQuery = true)
+    Optional<Integer> findOwnerIdByCompanyId(@Param("companyId") Integer companyId);
+
+    // Ánh xạ công ty -> chủ sở hữu cho cả danh sách tin (trả [id, owner_id]).
+    @Query(value = "SELECT id, owner_id FROM companies", nativeQuery = true)
+    List<Object[]> findCompanyOwners();
+
     // Admin sửa tên hiển thị của nhà tuyển dụng = sửa tên công ty họ sở hữu.
     @Modifying
     @Query(value = "UPDATE companies SET name = :name WHERE owner_id = :ownerId",

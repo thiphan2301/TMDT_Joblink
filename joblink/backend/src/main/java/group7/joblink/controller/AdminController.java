@@ -74,6 +74,16 @@ public class AdminController {
         return adminService.updateUser(id, body);
     }
 
+    // Cấp gói Pro / hạ về Basic cho nhà tuyển dụng.
+    @PatchMapping("/users/{id}/plan")
+    public UserRow setEmployerPlan(
+            @PathVariable int id,
+            @RequestBody AdminPlanRequest body,
+            HttpServletRequest request) {
+        adminAccess.requireAdminId(request);
+        return adminService.setEmployerPlan(id, body);
+    }
+
     @PatchMapping("/users/{id}/password")
     public ResponseEntity<Void> changeUserPassword(
             @PathVariable int id,

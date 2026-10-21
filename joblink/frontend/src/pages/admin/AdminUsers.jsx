@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { AdminPageHeader } from "../../components/admin/AdminLayout.jsx";
 import { AdminModal, ConfirmDelete, FieldLabel } from "../../components/admin/AdminModal.jsx";
-import { IconPlus, IconEdit, IconLock, IconUnlock, IconTrash, IconCheck, IconKey } from "../../components/admin/AdminIcons.jsx";
+import { IconPlus, IconEdit, IconLock, IconUnlock, IconTrash, IconCheck, IconKey, IconCrown } from "../../components/admin/AdminIcons.jsx";
 import { ROLE_LABELS, initialsOf } from "../../components/admin/adminFormat.js";
 import useAdminData from "../../hooks/useAdminData.js";
 import {
@@ -11,7 +11,15 @@ import {
   setAdminUserStatus,
   deleteAdminUser,
   changeAdminUserPassword,
+  setAdminUserPlan,
 } from "../../services/adminService.js";
+
+// 3 cấp gói dịch vụ của nhà tuyển dụng (Basic miễn phí < Pro < Premium).
+const PLAN_OPTIONS = [
+  { value: "basic", label: "Basic", desc: "Miễn phí — tin đăng thường, không tìm được hồ sơ ứng viên." },
+  { value: "pro", label: "Pro", desc: "Tin ưu tiên lên đầu + hiển thị nổi bật, tìm được hồ sơ ứng viên." },
+  { value: "premium", label: "Premium", desc: "Mọi quyền của Pro, kèm nhiều Token hơn — cấp cao nhất." },
+];
 
 const ROLE_FILTERS = [
   { value: "all", label: "Tất cả" },
@@ -30,6 +38,8 @@ export default function AdminUsers() {
   const [editing, setEditing] = useState(null); // null: đóng; {}: thêm mới; user: sửa
   const [deleting, setDeleting] = useState(null);
   const [passwordUser, setPasswordUser] = useState(null); // user đang được đổi mật khẩu
+  const [planUser, setPlanUser] = useState(null); // nhà tuyển dụng đang được đổi gói
+  const [planTarget, setPlanTarget] = useState("basic"); // gói đang chọn trong hộp thoại đổi gói
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -76,6 +86,21 @@ export default function AdminUsers() {
   async function handleDelete() {
     const ok = await run(() => deleteAdminUser(deleting.id));
     if (ok) setDeleting(null);
+  }
+
+  // Đổi gói dịch vụ cho nhà tuyển dụng (PATCH /users/{id}/plan).
+  async function handleSetPlan() {
+    const label = PLAN_OPTIONS.find((o) => o.value === planTarget)?.label || planTarget;
+    const ok = await run(() => setAdminUserPlan(planUser.id, planTarget));
+    if (ok) {
+      setNotice(`Đã chuyển ${planUser.fullName} sang gói ${label}.`);
+      setPlanUser(null);
+    }
+  }
+
+  function openPlanModal(user) {
+    setPlanUser(user);
+    setPlanTarget(user.plan || "basic");
   }
 
   return (
@@ -135,7 +160,16 @@ export default function AdminUsers() {
                       </div>
                     </div>
                   </td>
-                  <td><span className="admin-badge admin-badge--blue">{ROLE_LABELS[u.role] || u.role}</span></td>
+                  <td>
+                    <span className="admin-badge admin-badge--blue">{ROLE_LABELS[u.role] || u.role}</span>
+                    {u.role === "employer" && (
+                      u.plan === "premium"
+                        ? <span className="admin-badge admin-badge--blue" style={{ marginLeft: 6 }}>PREMIUM</span>
+                        : u.plan === "pro"
+                          ? <span className="admin-badge admin-badge--gold" style={{ marginLeft: 6 }}>PRO</span>
+                          : <span className="admin-badge admin-badge--gray" style={{ marginLeft: 6 }}>Basic</span>
+                    )}
+                  </td>
                   <td>
                     {u.status === "locked"
                       ? <span className="admin-badge admin-badge--red">Đã khóa</span>
@@ -149,6 +183,11 @@ export default function AdminUsers() {
                       <button type="button" className="admin-icon-btn" onClick={() => setPasswordUser(u)} aria-label={`Đổi mật khẩu ${u.fullName}`} disabled={busy}>
                         <IconKey size={18} />
                       </button>
+                      {u.role === "employer" && (
+                        <button type="button" className="admin-icon-btn" onClick={() => openPlanModal(u)} aria-label={`Đổi gói dịch vụ cho ${u.fullName}`} disabled={busy}>
+                          <IconCrown size={18} />
+                        </button>
+                      )}
                       <button
                         type="button" className="admin-icon-btn"
                         onClick={() => handleToggleLock(u)}
@@ -190,6 +229,54 @@ export default function AdminUsers() {
           onClose={() => setEditing(null)}
           onSave={handleSave}
         />
+      )}
+
+      {planUser && (
+        <AdminModal title="Đổi gói dịch vụ" onClose={() => setPlanUser(null)}>
+          <p style={{ margin: "0 0 14px", lineHeight: 1.6 }}>
+            Chọn gói cho nhà tuyển dụng <strong>{planUser.fullName}</strong>. Gói trả phí
+            được ghi nhận bằng một đơn hàng 0đ (admin cấp tay) nên không tính vào doanh thu;
+            chuyển xuống Basic sẽ hủy gói trả phí đang hiệu lực và tắt ưu tiên tin đăng.
+          </p>
+          <div style={{ display: "grid", gap: 8, marginBottom: 20 }}>
+            {PLAN_OPTIONS.map((o) => (
+              <label
+                key={o.value}
+                style={{
+                  display: "flex", gap: 10, alignItems: "flex-start",
+                  border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px",
+                  cursor: "pointer",
+                  background: planTarget === o.value ? "#f5f9ff" : "#fff",
+                }}
+              >
+                <input
+                  type="radio" name="plan-target" value={o.value}
+                  checked={planTarget === o.value}
+                  onChange={() => setPlanTarget(o.value)}
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  <strong>{o.label}</strong>
+                  {planUser.plan === o.value && (
+                    <span className="admin-badge admin-badge--gray" style={{ marginLeft: 8 }}>Đang dùng</span>
+                  )}
+                  <span style={{ display: "block", color: "#64748b", fontSize: 13, marginTop: 2 }}>{o.desc}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button type="button" className="admin-btn" onClick={() => setPlanUser(null)} disabled={busy}>
+              Hủy
+            </button>
+            <button
+              type="button" className="admin-btn admin-btn--primary" onClick={handleSetPlan}
+              disabled={busy || planTarget === (planUser.plan || "basic")}
+            >
+              {busy ? "Đang xử lý..." : "Lưu gói"}
+            </button>
+          </div>
+        </AdminModal>
       )}
 
       {deleting && (
