@@ -5,26 +5,19 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router"
 import Login from './pages/auth/Login.jsx';
 import Register from './pages/auth/register.jsx';
 
-// Candidate Components
+// Candidate Components — GIAO DIỆN GỐC của nhóm (khung Header +
+// SidebarCandidate), khôi phục 2026-10-21 theo yêu cầu của Sĩ:
+// bỏ bộ giao diện "public" (PublicHeader/HomePage/...) và bỏ mục
+// "Design System" khỏi thanh bên.
+import Header from "./components/Header.jsx";
+import DiscoverJobs from "./pages/candidate/DiscoverJobs";
+import SidebarCandidate from "./components/SidebarCandidate";
+import JobsPage from "./pages/candidate/JobsPage";
+import JobDetailPage from "./pages/candidate/JobDetailPage";
 import ProfilePage from "./pages/candidate/ProfilePage";
-import ApplicationsPage from "./pages/candidate/ApplicationsPage";
-
-// Các trang công khai theo thiết kế mới nhất (trang chủ Khám phá,
-// danh sách việc làm, chi tiết việc làm, trang công ty) kèm thanh
-// trên cùng và chân trang mới — thay cho Header/Sidebar cũ và ba
-// trang DiscoverJobs/JobsPage/JobDetailPage trước đây.
-import PublicHeader from "./components/candidate/PublicHeader.jsx";
-import PublicFooter from "./components/candidate/PublicFooter.jsx";
-import HomePage from "./pages/candidate/HomePage.jsx";
-import JobsListPage from "./pages/candidate/JobsListPage.jsx";
-import JobDetailView from "./pages/candidate/JobDetailView.jsx";
-import CompanyPage from "./pages/candidate/CompanyPage.jsx";
-
-// Khu vực ứng viên theo thiết kế mới (thanh bên trái cố định):
-// Tổng quan, Tin nhắn realtime, Trợ lý AI, Ví Token; mục chưa có
-// thiết kế được yêu cầu thì để trống (CandidateEmptyPage).
-import CandidateLayout from "./components/candidate/CandidateLayout.jsx";
-import CandidateDashboard from "./pages/candidate/CandidateDashboard.jsx";
+import DashboardPage from "./pages/candidate/DashboardPage.jsx";
+import ApplicationsPage from "./pages/candidate/ApplicationsPage.jsx";
+import SavedJobsPage from "./pages/candidate/SavedJobsPage.jsx";
 import MessagesPage from "./pages/candidate/MessagesPage.jsx";
 import AssistantPage from "./pages/candidate/AssistantPage.jsx";
 import CandidateWalletPage from "./pages/candidate/CandidateWalletPage.jsx";
@@ -53,15 +46,41 @@ import AdminJobEdit from "./pages/admin/AdminJobEdit.jsx";
 import AdminReports from "./pages/admin/AdminReports.jsx";
 import AdminPackages from "./pages/admin/AdminPackages.jsx";
 
+// CSS của các trang ứng viên (Ví Token, Trợ lý AI, Tin nhắn, trang
+// trống) — trước đây do CandidateLayout nạp, nay App nạp trực tiếp
+// vì khu ứng viên đã quay về khung gốc.
+import "./style/Candidate.css";
+
 // Services
 import { getCurrentUser, logout } from "./services/authService";
+import { getCandidateOverview, getCandidateWallet } from "./services/candidateService";
+import { getConversations } from "./services/chatService";
 
 // Trang ứng với URL: giữ đúng tiêu đề Header và mục sáng trên Sidebar
 // khi tải lại trang hoặc mở link trực tiếp.
 const ROUTE_PAGES = {
     "/discover": { id: "discover", label: "Khám phá việc làm" },
-    "/profile": { id: "profile", label: "Hồ sơ của tôi" },
+    "/jobs": { id: "discover", label: "Khám phá việc làm" },
+    "/dashboard": { id: "overview", label: "Tổng quan" },
     "/applications": { id: "applications", label: "Việc đã ứng tuyển" },
+    "/saved": { id: "saved", label: "Việc làm đã lưu" },
+    "/profile": { id: "profile", label: "Hồ sơ của tôi" },
+    "/tin-nhan": { id: "messages", label: "Tin nhắn" },
+    "/history": { id: "history", label: "Lịch sử hoạt động" },
+    "/vi-token": { id: "wallet", label: "Ví Token" },
+    "/tro-ly-ai": { id: "assistant", label: "Trợ lý việc làm AI" },
+};
+
+// Mục trên SidebarCandidate -> đường dẫn thật
+const PAGE_ROUTES = {
+    discover: "/discover",
+    overview: "/dashboard",
+    applications: "/applications",
+    saved: "/saved",
+    messages: "/tin-nhan",
+    profile: "/profile",
+    history: "/history",
+    wallet: "/vi-token",
 };
 
 export default function App() {
@@ -71,8 +90,23 @@ export default function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [, setAuthLoading] = useState(true);
 
+    // --- STATE ỨNG DỤNG CHÍNH ---
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [selectedPage, setSelectedPage] = useState({
+        id: "discover",
+        label: "Khám phá việc làm",
+    });
+    // Số thật cho thanh bên ứng viên: số đơn đã ứng tuyển (huy hiệu),
+    // số tin chưa đọc (huy hiệu) và số dư Ví Token (thẻ cuối thanh bên)
+    const [sidebarStats, setSidebarStats] = useState(null);
+
     const navigate = useNavigate();
     const location = useLocation();
+    const currentPage =
+        ROUTE_PAGES[location.pathname] ||
+        (location.pathname.startsWith("/jobs/")
+            ? ROUTE_PAGES["/jobs"]
+            : selectedPage);
 
     // Scroll to top khi đổi route
     useEffect(() => {
@@ -110,7 +144,48 @@ export default function App() {
         };
     }, []);
 
+    // Nạp số thật cho thanh bên khi đã đăng nhập bằng tài khoản ứng
+    // viên; chạy lại mỗi lần đổi trang để huy hiệu tin chưa đọc và
+    // số đơn luôn mới. Lỗi từng API thì phần đó để 0/ẩn.
+    const candidateId = currentUser?.role === "candidate" ? currentUser.id : null;
+    useEffect(() => {
+        if (!candidateId) return;
+        let cancelled = false;
+        (async () => {
+            const [overview, conversations, wallet] = await Promise.allSettled([
+                getCandidateOverview(),
+                getConversations(),
+                getCandidateWallet(),
+            ]);
+            if (cancelled) return;
+            setSidebarStats({
+                forId: candidateId,
+                applications:
+                    overview.status === "fulfilled" ? overview.value.appliedCount : 0,
+                messages:
+                    conversations.status === "fulfilled"
+                        ? conversations.value.reduce((sum, row) => sum + (row.unread || 0), 0)
+                        : 0,
+                balance: wallet.status === "fulfilled" ? wallet.value.balance : null,
+            });
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [candidateId, location.pathname]);
+
+    // Chỉ dùng số của đúng tài khoản đang đăng nhập (đổi tài khoản
+    // hoặc đăng xuất thì số cũ tự vô hiệu)
+    const stats =
+        sidebarStats && sidebarStats.forId === candidateId ? sidebarStats : null;
+
     // --- HANDLERS ---
+    function handleSelectPage(item) {
+        setSelectedPage(item);
+        setSidebarOpen(false);
+        navigate(PAGE_ROUTES[item.id] || `/${item.id}`);
+    }
+
     // Hàm gọi khi đăng nhập thành công (user: thông tin backend trả về, nếu có)
     function handleLoginSuccess(user) {
         if (!user?.id || !user?.role) {
@@ -133,15 +208,26 @@ export default function App() {
             return;
         }
 
-        // Chỉ nhận đường dẫn chi tiết việc làm trong ứng dụng;
-        // còn lại ứng viên vào thẳng trang Tổng quan theo thiết kế
-        // mới (khu vực có thanh bên trái) thay vì trang Khám phá cũ.
+        // Chỉ nhận đường dẫn chi tiết việc làm trong ứng dụng.
+        // Ứng viên đăng nhập xong vào trang Tổng quan của không gian
+        // làm việc (theo thiết kế gốc).
         const returnTo = location.state?.returnTo;
         const destination =
             typeof returnTo === "string" &&
             /^\/jobs\/\d+$/.test(returnTo) ? returnTo : "/dashboard";
 
         navigate(destination, { replace: true });
+    }
+    // xử lý hết hạn phiên
+    async function handleLogout() {
+        try {
+            await logout();
+        } catch {
+            // Vẫn đăng xuất ở giao diện kể cả khi không gọi được backend
+        }
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        navigate("/login");
     }
 
     // --- KIỂM TRA ROUTE HIỆN TẠI ---
@@ -152,22 +238,41 @@ export default function App() {
     const isAdminPage = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
     // Khu vực nhà tuyển dụng cũng có khung riêng (EmployerLayout).
     const isEmployerPage = location.pathname === '/employer' || location.pathname.startsWith('/employer/');
-    // Khu vực ứng viên theo thiết kế mới có khung riêng (thanh trên
-    // cùng + thanh bên trái trong CandidateLayout) nên cũng ẩn
-    // Header và Sidebar cũ, giống khu vực admin/nhà tuyển dụng.
-    const CANDIDATE_AREA = ['/dashboard', '/profile', '/cv', '/viec-lam-phu-hop',
-        '/viec-lam-da-luu', '/viec-lam-da-ung-tuyen', '/tin-nhan', '/messages',
-        '/tro-ly-ai', '/vi-token', '/cai-dat'];
-    const isCandidateArea = CANDIDATE_AREA.some((p) =>
-        location.pathname === p || location.pathname.startsWith(p + '/'));
-
-    // Trang công khai theo thiết kế mới dùng thanh trên cùng +
-    // chân trang riêng (PublicHeader/PublicFooter).
-    const showPublicChrome = !isAuthPage && !isAdminPage && !isEmployerPage && !isCandidateArea;
 
     return (
         <>
-            {showPublicChrome && <PublicHeader />}
+            {/* Khung gốc (Header + SidebarCandidate) bọc mọi trang ứng
+                viên/công khai; chỉ ẩn ở trang đăng nhập/đăng ký và các
+                khu vực có khung riêng (admin, nhà tuyển dụng) */}
+            {!isAuthPage && !isAdminPage && !isEmployerPage && (
+                <>
+                    <Header
+                        onOpenSidebar={() => setSidebarOpen(true)}
+                        pageTitle={currentPage.label}
+                        isAuthenticated={isAuthenticated} // Truyền state này xuống Header để Header biết hiển thị nút "Đăng nhập" hay "Avatar user"
+                        userName={currentUser?.fullName || currentUser?.email}
+                        userRole={currentUser?.role}
+                        avatarUrl={currentUser?.avatar}
+                        onLogout={handleLogout}
+                    />
+
+                    <SidebarCandidate
+                        isOpen={sidebarOpen}
+                        onClose={() => setSidebarOpen(false)}
+                        activeItem={currentPage.id}
+                        onSelect={handleSelectPage}
+                        badges={
+                            stats
+                                ? {
+                                    applications: stats.applications,
+                                    messages: stats.messages,
+                                }
+                                : undefined
+                        }
+                        walletBalance={stats ? stats.balance : null}
+                    />
+                </>
+            )}
 
             <main style={{ flex: 1, minWidth: 0 }}>
                 <Routes>
@@ -193,41 +298,42 @@ export default function App() {
 
                     {/* --- CÁC ROUTE MAIN (Cho phép xem trước khi đăng nhập) --- */}
                     <Route path="/" element={<Navigate to="/discover" replace />} />
-                    <Route path="/discover" element={<HomePage />} />
-                    <Route path="/jobs" element={<JobsListPage />} />
-                    <Route path="/jobs/:id" element={<JobDetailView />} />
-                    <Route path="/cong-ty/:id" element={<CompanyPage />} />
+                    <Route path="/discover" element={<DiscoverJobs />} />
+                    <Route path="/jobs" element={<JobsPage />} />
+                    <Route path="/jobs/:id" element={<JobDetailPage />} />
 
-                    {/* --- KHU VỰC ỨNG VIÊN (thanh bên trái theo thiết kế
-                         mới). Hồ sơ dùng lại ProfilePage hiện có; các mục
-                         chưa có thiết kế được yêu cầu thì để trống --- */}
-                    <Route element={<CandidateLayout />}>
-                        <Route path="/dashboard" element={<CandidateDashboard />} />
-                        <Route
-                            path="/profile"
-                            element={
-                                <ProfilePage
-                                    // Lưu xong thì cập nhật tên, ảnh trên Header
-                                    onProfileUpdated={(profile) =>
-                                        setCurrentUser((user) =>
-                                            user
-                                                ? { ...user, fullName: profile.fullName, avatar: profile.avatar }
-                                                : user
-                                        )
-                                    }
-                                />
-                            }
-                        />
-                        <Route path="/cv" element={<CandidateEmptyPage />} />
-                        <Route path="/viec-lam-phu-hop" element={<CandidateEmptyPage />} />
-                        <Route path="/viec-lam-da-luu" element={<CandidateEmptyPage />} />
-                        <Route path="/viec-lam-da-ung-tuyen" element={<CandidateEmptyPage />} />
-                        <Route path="/tin-nhan" element={<MessagesPage />} />
-                        <Route path="/messages" element={<Navigate to="/tin-nhan" replace />} />
-                        <Route path="/tro-ly-ai" element={<AssistantPage />} />
-                        <Route path="/vi-token" element={<CandidateWalletPage />} />
-                        <Route path="/cai-dat" element={<CandidateEmptyPage />} />
-                    </Route>
+                    {/* --- KHÔNG GIAN ỨNG VIÊN (trong khung gốc) --- */}
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/applications" element={<ApplicationsPage />} />
+                    <Route path="/saved" element={<SavedJobsPage />} />
+                    <Route
+                        path="/profile"
+                        element={
+                            <ProfilePage
+                                // Lưu xong thì cập nhật tên, ảnh trên Header
+                                onProfileUpdated={(profile) =>
+                                    setCurrentUser((user) =>
+                                        user
+                                            ? { ...user, fullName: profile.fullName, avatar: profile.avatar }
+                                            : user
+                                    )
+                                }
+                            />
+                        }
+                    />
+                    {/* Lịch sử hoạt động chưa có thiết kế được yêu cầu -> để trống */}
+                    <Route path="/history" element={<CandidateEmptyPage />} />
+                    <Route path="/tin-nhan" element={<MessagesPage />} />
+                    <Route path="/messages" element={<Navigate to="/tin-nhan" replace />} />
+                    <Route path="/tro-ly-ai" element={<AssistantPage />} />
+                    <Route path="/vi-token" element={<CandidateWalletPage />} />
+
+                    {/* Đường dẫn cũ từ đợt giao diện trước -> chuyển về
+                        đúng trang trong giao diện gốc */}
+                    <Route path="/viec-lam-da-ung-tuyen" element={<Navigate to="/applications" replace />} />
+                    <Route path="/viec-lam-da-luu" element={<Navigate to="/saved" replace />} />
+                    <Route path="/viec-lam-phu-hop" element={<Navigate to="/discover" replace />} />
+                    <Route path="/cv" element={<Navigate to="/profile" replace />} />
 
                     {/* --- KHU VỰC NHÀ TUYỂN DỤNG (backend kiểm tra role
                          employer ở từng API /api/employer/**) --- */}
@@ -245,12 +351,6 @@ export default function App() {
                         <Route path="plan" element={<EmployerPlan />} />
                         <Route path="wallet" element={<EmployerWallet />} />
                     </Route>
-
-                    {/* Việc đã ứng tuyển: userId để đánh dấu cập nhật mới theo từng tài khoản */}
-                    <Route
-                        path="/applications"
-                        element={<ApplicationsPage userId={currentUser?.id} />}
-                    />
 
                     {/* --- KHU VỰC ADMIN (không cần đăng nhập để xem thử: dữ liệu mẫu
                          tự hiện khi backend chưa trả dữ liệu; muốn chặn theo role thì
@@ -275,8 +375,6 @@ export default function App() {
                     />
                 </Routes>
             </main>
-
-            {showPublicChrome && <PublicFooter />}
         </>
     );
 }
