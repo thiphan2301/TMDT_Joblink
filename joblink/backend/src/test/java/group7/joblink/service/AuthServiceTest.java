@@ -9,6 +9,7 @@ import group7.joblink.repository.SocialAccountRepository;
 import group7.joblink.repository.UserRepository;
 import group7.joblink.security.JwtService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import group7.joblink.service.FacebookTokenVerifier.FacebookProfile;
 import group7.joblink.service.GoogleTokenVerifier.GoogleProfile;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,8 +29,10 @@ import static org.mockito.Mockito.*;
 class AuthServiceTest {
 
     private static final String TOKEN = "google-id-token";
+    private static final String FB_TOKEN = "facebook-access-token";
 
     private GoogleTokenVerifier googleTokenVerifier;
+    private FacebookTokenVerifier facebookTokenVerifier;
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
     private OtpService otpService;
@@ -41,6 +44,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         googleTokenVerifier = mock(GoogleTokenVerifier.class);
+        facebookTokenVerifier = mock(FacebookTokenVerifier.class);
         passwordEncoder = mock(PasswordEncoder.class);
         jwtService = mock(JwtService.class);
         otpService = mock(OtpService.class);
@@ -54,6 +58,7 @@ class AuthServiceTest {
                 jwtService,
                 otpService,
                 googleTokenVerifier,
+                facebookTokenVerifier,
                 candidateProfileRepository,
                 socialAccountRepository);
 
@@ -196,8 +201,96 @@ class AuthServiceTest {
         verify(socialAccountRepository, never()).save(any(SocialAccount.class));
     }
 
+    @Test
+    void taoUngVienMoiKhiDangNhapFacebookLanDau() {
+        givenFacebookProfile(new FacebookProfile("fb-1", "Lan.Anh@Gmail.com", "Lê Lan Anh", "https://fb-pic"));
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialAccount.Provider.facebook, "fb-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("lan.anh@gmail.com")).thenReturn(Optional.empty());
+        when(candidateProfileRepository.findById(10)).thenReturn(Optional.of(
+                new CandidateProfile(10, "Lê Lan Anh", "https://fb-pic")));
+
+        AuthUserResponse response = authService.loginWithFacebook(FB_TOKEN, "candidate");
+
+        ArgumentCaptor<SocialAccount> link = ArgumentCaptor.forClass(SocialAccount.class);
+        verify(socialAccountRepository).save(link.capture());
+        assertThat(link.getValue().getProvider()).isEqualTo(SocialAccount.Provider.facebook);
+        assertThat(link.getValue().getProviderUserId()).isEqualTo("fb-1");
+        verify(candidateProfileRepository).save(any(CandidateProfile.class));
+
+        assertThat(response.id()).isEqualTo(10);
+        assertThat(response.email()).isEqualTo("lan.anh@gmail.com");
+        assertThat(response.fullName()).isEqualTo("Lê Lan Anh");
+    }
+
+    @Test
+    void facebookLienKetVaoTaiKhoanGoogleCungEmail() {
+        User existing = user(4, "nguyen.van.c@gmail.com", User.Role.candidate);
+        givenFacebookProfile(new FacebookProfile("fb-2", "nguyen.van.c@gmail.com", "C", null));
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialAccount.Provider.facebook, "fb-2")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("nguyen.van.c@gmail.com")).thenReturn(Optional.of(existing));
+
+        AuthUserResponse response = authService.loginWithFacebook(FB_TOKEN, null);
+
+        verify(userRepository, never()).saveAndFlush(any(User.class));
+        verify(socialAccountRepository).save(any(SocialAccount.class));
+        assertThat(response.id()).isEqualTo(4);
+    }
+
+    @Test
+    void dangNhapLaiFacebookDaLienKetKhongCanEmail() {
+        User existing = user(7, "hr@tiki.vn", User.Role.employer);
+        givenFacebookProfile(new FacebookProfile("fb-3", null, "HR Tiki", null));
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialAccount.Provider.facebook, "fb-3"))
+                .thenReturn(Optional.of(new SocialAccount(existing, SocialAccount.Provider.facebook, "fb-3")));
+
+        AuthUserResponse response = authService.loginWithFacebook(FB_TOKEN, null);
+
+        verify(socialAccountRepository, never()).save(any(SocialAccount.class));
+        assertThat(response.id()).isEqualTo(7);
+        assertThat(response.role()).isEqualTo("employer");
+    }
+
+    @Test
+    void facebookKhongCoEmailThiKhongTaoTaiKhoan() {
+        givenFacebookProfile(new FacebookProfile("fb-4", null, "Không Email", null));
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialAccount.Provider.facebook, "fb-4")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.loginWithFacebook(FB_TOKEN, null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(exception.getReason()).contains("Facebook");
+                });
+        verifyNoInteractions(userRepository);
+        verify(socialAccountRepository, never()).save(any(SocialAccount.class));
+    }
+
+    @Test
+    void tuChoiKhiEmailDaGanVoiFacebookKhac() {
+        User existing = user(9, "doi.email@gmail.com", User.Role.candidate);
+        givenFacebookProfile(new FacebookProfile("fb-new", "doi.email@gmail.com", "D", null));
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialAccount.Provider.facebook, "fb-new")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("doi.email@gmail.com")).thenReturn(Optional.of(existing));
+        when(socialAccountRepository.existsByUser_IdAndProvider(9, SocialAccount.Provider.facebook))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> authService.loginWithFacebook(FB_TOKEN, null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getReason()).contains("Facebook");
+                });
+    }
+
     private void givenGoogleProfile(GoogleProfile profile) {
         when(googleTokenVerifier.verify(TOKEN)).thenReturn(profile);
+    }
+
+    private void givenFacebookProfile(FacebookProfile profile) {
+        when(facebookTokenVerifier.verify(FB_TOKEN)).thenReturn(profile);
     }
 
     private static User user(int id, String email, User.Role role) {

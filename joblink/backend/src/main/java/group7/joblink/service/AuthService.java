@@ -34,6 +34,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final OtpService otpService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final FacebookTokenVerifier facebookTokenVerifier;
     private final CandidateProfileRepository candidateProfiles;
     private final SocialAccountRepository socialAccounts;
 
@@ -43,6 +44,7 @@ public class AuthService {
             JwtService jwtService,
             OtpService otpService,
             GoogleTokenVerifier googleTokenVerifier,
+            FacebookTokenVerifier facebookTokenVerifier,
             CandidateProfileRepository candidateProfiles,
             SocialAccountRepository socialAccounts
     ) {
@@ -51,6 +53,7 @@ public class AuthService {
         this.jwtService = jwtService;
         this.otpService = otpService;
         this.googleTokenVerifier = googleTokenVerifier;
+        this.facebookTokenVerifier = facebookTokenVerifier;
         this.candidateProfiles = candidateProfiles;
         this.socialAccounts = socialAccounts;
     }
@@ -146,13 +149,69 @@ public class AuthService {
             );
         }
 
+        return loginWithSocial(
+                SocialAccount.Provider.google,
+                new SocialProfile(
+                        profile.googleId(),
+                        profile.email(),
+                        profile.name(),
+                        profile.picture()
+                ),
+                requestedRole
+        );
+    }
+
+    // ======================================
+    // ĐĂNG NHẬP FACEBOOK
+    // ======================================
+
+    @Transactional
+    public AuthUserResponse loginWithFacebook(
+            String accessToken,
+            String requestedRole
+    ) {
+
+        FacebookTokenVerifier.FacebookProfile profile =
+                facebookTokenVerifier.verify(accessToken);
+
+        // Email Facebook có thể trống: chỉ bắt buộc khi
+        // cần tạo hoặc liên kết tài khoản lần đầu.
+        return loginWithSocial(
+                SocialAccount.Provider.facebook,
+                new SocialProfile(
+                        profile.facebookId(),
+                        profile.email(),
+                        profile.name(),
+                        profile.picture()
+                ),
+                requestedRole
+        );
+    }
+
+    // Thông tin chung của tài khoản Google/Facebook đã xác thực.
+    private record SocialProfile(
+            String providerUserId,
+            String email,
+            String name,
+            String picture
+    ) {}
+
+    // Đã liên kết thì đăng nhập luôn; chưa thì liên kết theo email
+    // (hoặc tạo tài khoản mới nếu email chưa có trong hệ thống).
+    private AuthUserResponse loginWithSocial(
+            SocialAccount.Provider provider,
+            SocialProfile profile,
+            String requestedRole
+    ) {
+
         User user = socialAccounts
                 .findByProviderAndProviderUserId(
-                        SocialAccount.Provider.google,
-                        profile.googleId()
+                        provider,
+                        profile.providerUserId()
                 )
                 .map(SocialAccount::getUser)
-                .orElseGet(() -> linkGoogleAccount(
+                .orElseGet(() -> linkSocialAccount(
+                        provider,
                         profile,
                         requestedRole
                 ));
@@ -181,18 +240,28 @@ public class AuthService {
     }
 
     // ======================================
-    // LIÊN KẾT TÀI KHOẢN GOOGLE
+    // LIÊN KẾT TÀI KHOẢN GOOGLE / FACEBOOK
     // ======================================
 
-    private User linkGoogleAccount(
-            GoogleTokenVerifier.GoogleProfile profile,
+    private User linkSocialAccount(
+            SocialAccount.Provider provider,
+            SocialProfile profile,
             String requestedRole
     ) {
+
+        if (profile.email() == null || profile.email().isBlank()) {
+            throw err(
+                    HttpStatus.BAD_REQUEST,
+                    "Tài khoản " + providerName(provider)
+                            + " chưa chia sẻ email. Vui lòng cho phép JobLink xem email"
+                            + " hoặc đăng ký bằng email."
+            );
+        }
 
         String email = normalizeEmail(profile.email());
 
         User user = users.findByEmail(email)
-                .orElseGet(() -> createGoogleUser(
+                .orElseGet(() -> createSocialUser(
                         profile,
                         email,
                         requestedRole
@@ -200,29 +269,36 @@ public class AuthService {
 
         if (socialAccounts.existsByUser_IdAndProvider(
                 user.getId(),
-                SocialAccount.Provider.google
+                provider
         )) {
             throw err(
                     HttpStatus.CONFLICT,
-                    "Email đã liên kết với tài khoản Google khác"
+                    "Email đã liên kết với tài khoản "
+                            + providerName(provider) + " khác"
             );
         }
 
         socialAccounts.save(new SocialAccount(
                 user,
-                SocialAccount.Provider.google,
-                profile.googleId()
+                provider,
+                profile.providerUserId()
         ));
 
         return user;
     }
 
+    private String providerName(SocialAccount.Provider provider) {
+        return provider == SocialAccount.Provider.facebook
+                ? "Facebook"
+                : "Google";
+    }
+
     // ======================================
-    // TẠO TÀI KHOẢN GOOGLE
+    // TẠO TÀI KHOẢN GOOGLE / FACEBOOK
     // ======================================
 
-    private User createGoogleUser(
-            GoogleTokenVerifier.GoogleProfile profile,
+    private User createSocialUser(
+            SocialProfile profile,
             String email,
             String role
     ) {

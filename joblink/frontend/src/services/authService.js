@@ -22,6 +22,30 @@ export async function loginWithGoogle(credential, role) {
   return data;
 }
 
+// Gửi access token Facebook lên backend để đăng nhập (hoặc tạo tài khoản lần đầu).
+// role: "candidate" | "employer" — chỉ dùng khi tài khoản chưa tồn tại.
+export async function loginWithFacebook(accessToken, role) {
+  const response = await fetch("/api/auth/facebook", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ accessToken, role }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ||
+      `Đăng nhập Facebook thất bại. Mã lỗi: ${response.status}`
+    );
+  }
+
+  return data;
+}
+
 // Lấy người dùng đang đăng nhập; trả về null nếu chưa đăng nhập.
 export async function getCurrentUser() {
   const response = await fetch("/api/auth/me", {

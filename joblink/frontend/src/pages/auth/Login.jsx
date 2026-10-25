@@ -4,7 +4,8 @@ import {
     ShieldCheck, CheckCircle2, Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft
 } from 'lucide-react';
 import GoogleLoginButton from '../../components/GoogleLoginButton';
-import { loginWithGoogle } from '../../services/authService';
+import FacebookLoginButton from '../../components/FacebookLoginButton';
+import { loginWithFacebook, loginWithGoogle } from '../../services/authService';
 import '../../style/login.css';
 
 export default function Login({ onNavigateToRegister, onLoginSuccess }) {
@@ -16,6 +17,7 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
+    const [facebookLoading, setFacebookLoading] = useState(false);
 
     const handleGoogleCredential = async (credential) => {
         if (googleLoading) return;
@@ -29,6 +31,21 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
             setError(err.message || 'Đăng nhập Google thất bại');
         } finally {
             setGoogleLoading(false);
+        }
+    };
+
+    const handleFacebookToken = async (accessToken) => {
+        if (facebookLoading) return;
+        setError('');
+        setFacebookLoading(true);
+        try {
+            const user = await loginWithFacebook(accessToken);
+            if (onLoginSuccess) onLoginSuccess(user);
+            else navigate('/dashboard');
+        } catch (err) {
+            setError(err.message || 'Đăng nhập Facebook thất bại');
+        } finally {
+            setFacebookLoading(false);
         }
     };
 
@@ -183,7 +200,7 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
                         <span className="mx-4 text-xs text-slate-400">HOẶC ĐĂNG NHẬP VỚI</span>
                         <div className="flex-grow border-t border-slate-200"></div>
                     </div>
-                    <div className="flex justify-center">
+                    <div className="flex flex-col items-center gap-3">
                         <GoogleLoginButton
                             text="signin_with"
                             size="large"
@@ -192,9 +209,18 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
                             onCredential={handleGoogleCredential}
                             onError={setError}
                         />
+                        <FacebookLoginButton
+                            label="Đăng nhập với Facebook"
+                            onAccessToken={handleFacebookToken}
+                            onError={setError}
+                            disabled={facebookLoading}
+                        />
                     </div>
                     {googleLoading && (
                         <p className="text-sm mt-3 text-center text-slate-500">Đang đăng nhập với Google...</p>
+                    )}
+                    {facebookLoading && (
+                        <p className="text-sm mt-3 text-center text-slate-500">Đang đăng nhập với Facebook...</p>
                     )}
                 </div>
             </div>
