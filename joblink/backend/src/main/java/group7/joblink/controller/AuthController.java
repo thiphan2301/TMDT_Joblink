@@ -1,6 +1,7 @@
 package group7.joblink.controller;
 
 import group7.joblink.dto.*;
+import group7.joblink.dto.request.FacebookLoginRequest;
 import group7.joblink.dto.request.GoogleLoginRequest;
 import group7.joblink.dto.response.AuthUserResponse;
 import group7.joblink.service.AuthService;
@@ -54,6 +55,17 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thiếu Google ID token");
         }
         AuthUserResponse user = authService.loginWithGoogle(body.credential(), body.role());
+        startSession(request, user.id());
+        return user;
+    }
+
+    @PostMapping("/facebook")
+    public AuthUserResponse loginWithFacebook(@Valid @RequestBody FacebookLoginRequest body,
+                                              HttpServletRequest request) {
+        if (body.accessToken() == null || body.accessToken().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thiếu access token Facebook");
+        }
+        AuthUserResponse user = authService.loginWithFacebook(body.accessToken(), body.role());
         startSession(request, user.id());
         return user;
     }

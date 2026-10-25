@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 
 import GoogleLoginButton from '../../components/GoogleLoginButton';
-import { loginWithGoogle } from '../../services/authService';
+import FacebookLoginButton from '../../components/FacebookLoginButton';
+import { loginWithFacebook, loginWithGoogle } from '../../services/authService';
 import '../../style/register.css';
 
 const API_URL = '/api/auth';
@@ -35,6 +36,7 @@ export default function Register({ onNavigateToLogin, onLoginSuccess }) {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
+    const [facebookLoading, setFacebookLoading] = useState(false);
     const [otpStep, setOtpStep] = useState(false);
     const [otp, setOtp] = useState('');
     const [pendingEmail, setPendingEmail] = useState('');
@@ -57,6 +59,25 @@ export default function Register({ onNavigateToLogin, onLoginSuccess }) {
             setError(err.message || 'Không đăng nhập được bằng Google');
         } finally {
             setGoogleLoading(false);
+        }
+    };
+
+    const handleFacebookToken = async (accessToken) => {
+        if (facebookLoading) return;
+        if (!agreed) {
+            setError('Vui lòng đồng ý điều khoản sử dụng trước khi đăng ký Facebook.');
+            return;
+        }
+        setError('');
+        setFacebookLoading(true);
+        try {
+            const user = await loginWithFacebook(accessToken, role);
+            if (onLoginSuccess) onLoginSuccess(user);
+            else navigate('/dashboard');
+        } catch (err) {
+            setError(err.message || 'Không đăng nhập được bằng Facebook');
+        } finally {
+            setFacebookLoading(false);
         }
     };
 
@@ -578,7 +599,16 @@ export default function Register({ onNavigateToLogin, onLoginSuccess }) {
                                 onCredential={handleGoogleCredential}
                                 onError={setError}
                             />
+                            <div className="flex justify-center">
+                                <FacebookLoginButton
+                                    label="Đăng ký với Facebook"
+                                    onAccessToken={handleFacebookToken}
+                                    onError={setError}
+                                    disabled={facebookLoading}
+                                />
+                            </div>
                             {googleLoading && <p className="text-xs text-center">Đang xác minh Google...</p>}
+                            {facebookLoading && <p className="text-xs text-center">Đang xác minh Facebook...</p>}
                         </div>
                     )}
 
