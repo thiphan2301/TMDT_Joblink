@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +28,21 @@ public interface ApplicationRepository
         """)
     List<Application> findAllByCandidate(
             @Param("candidateId") Integer candidateId);
+
+    // Số đơn ứng tuyển của từng tin (tin chưa có đơn không có trong kết quả).
+    @Query("""
+        SELECT a.job.id AS jobId, COUNT(a) AS total
+        FROM Application a
+        WHERE a.job.id IN :jobIds
+        GROUP BY a.job.id
+        """)
+    List<JobApplicationCount> countByJobIds(
+            @Param("jobIds") Collection<Integer> jobIds);
+
+    interface JobApplicationCount {
+        Integer getJobId();
+        Long getTotal();
+    }
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

@@ -4,6 +4,7 @@ import group7.joblink.dto.response.JobResponse;
 import group7.joblink.entity.Company;
 import group7.joblink.entity.Job;
 import group7.joblink.entity.Skill;
+import group7.joblink.repository.ApplicationRepository;
 import group7.joblink.repository.JobRepository;
 
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,19 +34,31 @@ public class JobService {
     );
 
     private final JobRepository jobRepository;
+    private final ApplicationRepository applicationRepository;
 
-    public JobService(JobRepository jobRepository) {
+    public JobService(
+            JobRepository jobRepository,
+            ApplicationRepository applicationRepository) {
         this.jobRepository = jobRepository;
+        this.applicationRepository = applicationRepository;
     }
 
     // Lấy danh sách việc làm đang nhận hồ sơ.
     public List<JobResponse> getJobs() {
         LocalDate today = LocalDate.now(VIETNAM_ZONE);
 
-        return jobRepository
-                .findAvailableJobs(Job.Status.open, today)
-                .stream()
-                .map(job -> toResponse(job, today))
+        List<Job> jobs = jobRepository
+                .findAvailableJobs(Job.Status.open, today);
+
+        // Đếm số đơn của tất cả tin bằng một truy vấn.
+        Map<Integer, Long> counts = countApplications(
+                jobs.stream().map(Job::getId).toList());
+
+        return jobs.stream()
+                .map(job -> toResponse(
+                        job,
+                        today,
+                        counts.getOrDefault(job.getId(), 0L)))
                 .toList();
     }
 
@@ -60,11 +74,29 @@ public class JobService {
 
         LocalDate today = LocalDate.now(VIETNAM_ZONE);
 
-        return toResponse(job, today);
+        return toResponse(
+                job,
+                today,
+                countApplications(List.of(id)).getOrDefault(id, 0L));
+    }
+
+    private Map<Integer, Long> countApplications(List<Integer> jobIds) {
+        if (jobIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return applicationRepository.countByJobIds(jobIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        ApplicationRepository.JobApplicationCount::getJobId,
+                        ApplicationRepository.JobApplicationCount::getTotal));
     }
 
     // Chuyển Entity thành DTO để trả về frontend.
-    private JobResponse toResponse(Job job, LocalDate today) {
+    private JobResponse toResponse(
+            Job job,
+            LocalDate today,
+            long applicationCount) {
         Company company = job.getCompany();
 
         // Không đặt hạn hoặc hạn từ hôm nay trở đi.
@@ -106,6 +138,7 @@ public class JobService {
                 acceptingApplications,
                 job.isHighlighted(),
                 job.isPrioritized(),
+                applicationCount,
 
                 company.getId(),
                 company.getName(),
