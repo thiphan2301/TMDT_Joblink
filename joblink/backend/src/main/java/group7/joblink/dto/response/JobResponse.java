@@ -26,6 +26,8 @@ public record JobResponse(
     boolean acceptingApplications,
     boolean highlighted,
     boolean prioritized,
+    // Số người đã ứng tuyển, dùng để sắp xếp "nhiều người ứng tuyển nhất".
+    long applicationCount,
 
     Integer companyId,
     String companyName,

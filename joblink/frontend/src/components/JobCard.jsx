@@ -96,6 +96,9 @@ export default function JobCard({ job, saved, onSave, onView }) {
       <div className="job-card__info">
         <span>{job.location || "Chưa cập nhật địa điểm"}</span>
         <strong>{formatSalary(job)}</strong>
+        {job.applicationCount > 0 && (
+          <span>{job.applicationCount} người đã ứng tuyển</span>
+        )}
       </div>
 
       <div className="job-card__tags">

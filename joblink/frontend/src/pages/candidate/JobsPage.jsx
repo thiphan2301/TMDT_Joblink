@@ -7,6 +7,70 @@ import "../../style/JobsPages.css";
 
 const PAGE_SIZE = 8;
 
+// Các kiểu sắp xếp (giá trị lưu trên URL ?sort=...).
+const SORT_OPTIONS = [
+  { value: "priority", label: "Ưu tiên hiển thị" },
+  { value: "newest", label: "Mới nhất" },
+  { value: "salary_desc", label: "Lương: cao đến thấp" },
+  { value: "salary_asc", label: "Lương: thấp đến cao" },
+  { value: "popular", label: "Nhiều người ứng tuyển nhất" },
+  { value: "deadline", label: "Sắp hết hạn nộp" },
+];
+
+// Lương khác đơn vị không so được với nhau: xếp theo nhóm tháng -> giờ -> dự án.
+const UNIT_ORDER = { month: 0, hour: 1, project: 2 };
+
+// Giảm dần thì so mức lương cao nhất, tăng dần thì so mức thấp nhất.
+function salaryValue(job, direction) {
+  const min = job.salaryMin == null ? null : Number(job.salaryMin);
+  const max = job.salaryMax == null ? null : Number(job.salaryMax);
+  return direction === "desc" ? max ?? min : min ?? max;
+}
+
+function compareSalary(a, b, direction) {
+  const valueA = salaryValue(a, direction);
+  const valueB = salaryValue(b, direction);
+
+  // Tin "Thỏa thuận" luôn xếp cuối.
+  if (valueA == null || valueB == null) {
+    return Number(valueA == null) - Number(valueB == null);
+  }
+
+  const unitDifference =
+    (UNIT_ORDER[a.salaryUnit] ?? 9) - (UNIT_ORDER[b.salaryUnit] ?? 9);
+  if (unitDifference) return unitDifference;
+
+  return direction === "desc" ? valueB - valueA : valueA - valueB;
+}
+
+function compareNewest(a, b) {
+  return String(b.createdAt || "").localeCompare(
+    String(a.createdAt || "")
+  ) || b.id - a.id;
+}
+
+// So sánh theo kiểu đã chọn; bằng nhau thì tin mới hơn đứng trước.
+function compareJobs(a, b, sort) {
+  let difference = 0;
+
+  if (sort === "priority") {
+    difference = Number(b.prioritized) - Number(a.prioritized);
+  } else if (sort === "salary_desc") {
+    difference = compareSalary(a, b, "desc");
+  } else if (sort === "salary_asc") {
+    difference = compareSalary(a, b, "asc");
+  } else if (sort === "popular") {
+    difference = Number(b.applicationCount || 0) - Number(a.applicationCount || 0);
+  } else if (sort === "deadline") {
+    // Tin không ghi hạn nộp xếp cuối.
+    difference =
+      Number(!a.deadline) - Number(!b.deadline) ||
+      String(a.deadline || "").localeCompare(String(b.deadline || ""));
+  }
+
+  return difference || compareNewest(a, b);
+}
+
 function normalize(value) {
   return String(value || "")
     .normalize("NFD")
@@ -56,7 +120,14 @@ export default function JobsPage() {
   const types = params.getAll("type");
   const schedules = params.getAll("schedule");
   const unit = params.get("unit") || "";
-  const sort = params.get("sort") || "priority";
+  // "salary" là giá trị cũ (lương cao nhất), giữ cho link đã lưu trước đây.
+  const requestedSort = params.get("sort") === "salary"
+    ? "salary_desc"
+    : params.get("sort");
+  const sort = SORT_OPTIONS.some((option) => option.value === requestedSort)
+    ? requestedSort
+    : "priority";
+  const sortingSalary = sort === "salary_desc" || sort === "salary_asc";
   const view = params.get("view") || "grid";
 
   const minimum = Math.max(0, Number(params.get("min") || 0) || 0);
@@ -144,22 +215,7 @@ export default function JobsPage() {
         )
       );
     })
-    .sort((a, b) => {
-      // Chỉ so sánh lương khi đã chọn cùng một đơn vị.
-      if (sort === "salary" && unit) {
-        return Number(b.salaryMax ?? b.salaryMin ?? -1) -
-          Number(a.salaryMax ?? a.salaryMin ?? -1);
-      }
-
-      if (sort === "priority") {
-        const difference = Number(b.prioritized) - Number(a.prioritized);
-        if (difference) return difference;
-      }
-
-      return String(b.createdAt || "").localeCompare(
-        String(a.createdAt || "")
-      ) || b.id - a.id;
-    });
+    .sort((a, b) => compareJobs(a, b, sort));
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
@@ -298,15 +354,24 @@ export default function JobsPage() {
             <span><strong>{filtered.length} việc làm</strong> phù hợp</span>
 
             <div>
-              <select
-                aria-label="Sắp xếp"
-                value={sort === "salary" && !unit ? "priority" : sort}
-                onChange={(event) => changeFilter("sort", event.target.value)}
-              >
-                <option value="priority">Ưu tiên hiển thị</option>
-                <option value="newest">Mới nhất</option>
-                {unit && <option value="salary">Lương cao nhất</option>}
-              </select>
+              <label className="jobs-sort">
+                Sắp xếp
+                <select
+                  value={sort}
+                  onChange={(event) =>
+                    changeFilter(
+                      "sort",
+                      event.target.value === "priority" ? "" : event.target.value
+                    )
+                  }
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <button
                 type="button"
@@ -325,6 +390,14 @@ export default function JobsPage() {
               </button>
             </div>
           </div>
+
+          {sortingSalary && !unit && (
+            <p className="jobs-sort-note">
+              Lương được so sánh trong cùng đơn vị (tháng, giờ, dự án); tin
+              lương thỏa thuận xếp cuối. Chọn "Đơn vị lương" ở bộ lọc để chỉ
+              xem một loại.
+            </p>
+          )}
 
           {saveError && <p role="status">{saveError}</p>}
 
