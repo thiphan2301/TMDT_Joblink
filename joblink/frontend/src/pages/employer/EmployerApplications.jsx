@@ -599,6 +599,10 @@ function ApplicationDetailModal({ applicationId, onClose, onChat }) {
 
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
                 <button type="button" className="emp-btn" onClick={onClose}>Đóng</button>
+                {/* Hồ sơ đầy đủ: kỹ năng, mọi CV, các đơn đã nộp vào tin của mình. */}
+                <Link to={`/employer/candidates/${detail.candidateId}`} className="emp-btn">
+                  <IconUsers size={17} /> Xem hồ sơ đầy đủ
+                </Link>
                 <button type="button" className="emp-btn emp-btn--primary"
                         onClick={() => onChat({ candidateId: detail.candidateId, candidateName: detail.candidateName, jobId: detail.jobId })}>
                   <IconChat size={17} /> Nhắn tin với ứng viên

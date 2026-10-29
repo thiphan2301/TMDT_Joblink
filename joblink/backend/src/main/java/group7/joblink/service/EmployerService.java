@@ -334,7 +334,8 @@ public class EmployerService {
                 profile.getSummary(),
                 profile.getAddress(),
                 app.getCv() == null ? null : app.getCv().getFileName(),
-                app.getCv() == null ? null : app.getCv().getFileUrl(),
+                // cvs.file_url là tên file lưu trên máy chủ, không mở trực tiếp được.
+                app.getCv() == null ? null : EmployerCvService.applicationCvUrl(app.getId()),
                 job.getId(),
                 job.getTitle(),
                 job.getCompany() == null ? null : job.getCompany().getName()
@@ -442,7 +443,8 @@ public class EmployerService {
                         r[2] == null ? null : new BigDecimal(r[2].toString())))
                 .toList();
         List<CandidateCv> cvs = candidateRepository.findCvs(candidateId).stream()
-                .map(r -> new CandidateCv(toInt(r[0]), str(r[1]), str(r[2]),
+                .map(r -> new CandidateCv(toInt(r[0]), str(r[1]),
+                        EmployerCvService.candidateCvUrl(candidateId, toInt(r[0])),
                         toLong(r[3]) > 0, toDateTime(r[4])))
                 .toList();
         List<MyApplication> myApplications = candidateRepository
