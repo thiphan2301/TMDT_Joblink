@@ -123,6 +123,15 @@ public interface EmployerCandidateRepository
     long countViewOf(@Param("subscriptionId") Integer subscriptionId,
                      @Param("candidateId") Integer candidateId);
 
+    // Nhà tuyển dụng đã từng mở hồ sơ ứng viên này chưa (ở bất kỳ lượt đăng ký nào)
+    // — điều kiện xem CV của ứng viên chưa ứng tuyển vào tin của mình.
+    @Query(value = """
+        SELECT COUNT(*) FROM candidate_profile_views
+        WHERE viewed_by = :employerId AND candidate_id = :candidateId
+        """, nativeQuery = true)
+    long countViewsByEmployer(@Param("employerId") Integer employerId,
+                              @Param("candidateId") Integer candidateId);
+
     // Ghi nhận một lượt xem (UNIQUE subscription+candidate chống trùng).
     @Modifying
     @Query(value = """
