@@ -37,6 +37,19 @@ public class EmailService {
     }
 
     public void sendOtp(String email, String otp) {
+        sendText(email, "JobLink - Mã xác thực đăng ký",
+                "Mã xác thực JobLink của bạn là: " + otp
+                + "\nMã có hiệu lực trong 5 phút. Không chia sẻ mã này.");
+    }
+
+    public void sendPasswordReset(String email, String link) {
+        sendText(email, "JobLink - Đặt lại mật khẩu",
+                "Bạn đã yêu cầu đặt lại mật khẩu JobLink.\n\n" + link
+                + "\n\nLiên kết có hiệu lực trong 15 phút và chỉ dùng được một lần."
+                + "\nNếu không phải bạn yêu cầu, hãy bỏ qua email này.");
+    }
+
+    private void sendText(String email, String subject, String body) {
 
         Properties props = new Properties();
 
@@ -74,24 +87,14 @@ public class EmailService {
                     InternetAddress.parse(email)
             );
 
-            message.setSubject(
-                    "JobLink - Mã xác thực đăng ký",
-                    StandardCharsets.UTF_8.name()
-            );
-
-            message.setText(
-                    "Xin chào!\n\n"
-                    + "Mã xác thực JobLink của bạn là: " + otp
-                    + "\n\nMã có hiệu lực trong 5 phút."
-                    + "\nKhông chia sẻ mã này với bất kỳ ai.",
-                    StandardCharsets.UTF_8.name()
-            );
+            message.setSubject(subject, StandardCharsets.UTF_8.name());
+            message.setText(body, StandardCharsets.UTF_8.name());
 
             Transport.send(message);
 
         } catch (MessagingException e) {
             throw new IllegalStateException(
-                    "Không gửi được OTP. Kiểm tra Gmail và App Password.",
+                    "Không gửi được email. Kiểm tra cấu hình SMTP.",
                     e
             );
         }
