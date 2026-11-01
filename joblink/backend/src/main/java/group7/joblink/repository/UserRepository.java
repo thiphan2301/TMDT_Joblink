@@ -17,5 +17,13 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @Query("SELECT u FROM User u WHERE u.id = :id")
     Optional<User> findForUpdate(@Param("id") Integer id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.email = :email")
+    Optional<User> findLockedByEmail(@Param("email") String email);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.resetTokenHash = :hash")
+    Optional<User> findLockedByResetTokenHash(@Param("hash") String hash);
+
     boolean existsByEmail(String email);
 }

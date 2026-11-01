@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router"; // Đảm bảo dùng react-router-dom
 
 // Auth Components
+import PasswordRecovery from './pages/auth/PasswordRecovery.jsx';
 import Login from './pages/auth/Login.jsx';
 import Register from './pages/auth/register.jsx';
 
@@ -232,7 +233,7 @@ export default function App() {
 
     // --- KIỂM TRA ROUTE HIỆN TẠI ---
     // Nếu đang ở trang login hoặc register thì không hiển thị Header và Sidebar
-    const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+    const isAuthPage = ['/login', '/register', '/forgot-password', '/reset-password'].includes(location.pathname);
     // Khu vực admin có Header/Sidebar riêng (trong AdminLayout) nên cũng ẩn
     // Header và Sidebar ứng viên, giống trang auth.
     const isAdminPage = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
@@ -276,6 +277,8 @@ export default function App() {
 
             <main style={{ flex: 1, minWidth: 0 }}>
                 <Routes>
+                    <Route path="/forgot-password" element={<PasswordRecovery key="forgot" />} />
+                    <Route path="/reset-password" element={<PasswordRecovery key="reset" reset />} />
                     {/* --- CÁC ROUTE XÁC THỰC (AUTH) --- */}
                     <Route
                         path="/login"

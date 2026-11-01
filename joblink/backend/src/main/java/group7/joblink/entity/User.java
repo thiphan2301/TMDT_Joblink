@@ -35,6 +35,25 @@ public class User {
     )
     private LocalDateTime createdAt;
 
+    @Column(name = "reset_token_hash", length = 64)
+    private String resetTokenHash;
+    @Column(name = "reset_expires_at")
+    private LocalDateTime resetExpiresAt;
+    @Column(name = "reset_requested_at")
+    private LocalDateTime resetRequestedAt;
+
+    public String getResetTokenHash() { return resetTokenHash; }
+    public void setResetTokenHash(String value) { resetTokenHash = value; }
+    public LocalDateTime getResetExpiresAt() { return resetExpiresAt; }
+    public void setResetExpiresAt(LocalDateTime value) { resetExpiresAt = value; }
+    public LocalDateTime getResetRequestedAt() { return resetRequestedAt; }
+    public void setResetRequestedAt(LocalDateTime value) { resetRequestedAt = value; }
+
+    @Column(name = "sessions_invalid_before", nullable = false)
+    private long sessionsInvalidBefore;
+    public long getSessionsInvalidBefore() { return sessionsInvalidBefore; }
+    public void setSessionsInvalidBefore(long value) { sessionsInvalidBefore = value; }
+
     public enum Role {
         candidate,
         employer,

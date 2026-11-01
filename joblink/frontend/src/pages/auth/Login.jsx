@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
     ShieldCheck, CheckCircle2, Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft
 } from 'lucide-react';
@@ -90,6 +90,7 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
             } else {
                 setError(data.message || 'Đăng nhập thất bại');
             }
+            // eslint-disable-next-line no-unused-vars
         } catch (err) {
             setError('Lỗi kết nối đến server. Vui lòng thử lại sau.');
         } finally {
@@ -172,7 +173,7 @@ export default function Login({ onNavigateToRegister, onLoginSuccess }) {
                         <div>
                             <div className="flex justify-between items-center mb-1.5">
                                 <label htmlFor="password" className="block text-sm font-medium text-slate-700">Mật khẩu</label>
-                                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700">Quên mật khẩu?</a>
+                                <Link to="/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-700">Quên mật khẩu?</Link>
                             </div>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
