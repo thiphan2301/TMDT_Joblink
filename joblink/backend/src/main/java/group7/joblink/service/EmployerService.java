@@ -488,6 +488,30 @@ public class EmployerService {
         return toCompanyProfile(rows.get(0));
     }
 
+    // Nhà tuyển dụng TỰ tạo công ty cho chính mình. Trước đây công ty
+    // chỉ có sẵn từ dữ liệu mẫu hoặc do quản trị viên tạo rồi gắn, nên
+    // tài khoản tự đăng ký bị kẹt ở màn hình "chưa sở hữu công ty".
+    // Công ty mới ở trạng thái 'pending' chờ quản trị viên xác thực.
+    @Transactional
+    public CompanyProfile createCompany(int employerId, CompanyUpdateRequest req) {
+        if (req == null || req.name() == null || req.name().isBlank()) {
+            throw badRequest("Vui lòng nhập tên công ty.");
+        }
+        String taxCode = blankToNull(req.taxCode());
+        if (taxCode != null
+                && employerCompanyRepository.countByTaxCode(taxCode) > 0) {
+            throw badRequest(
+                    "Mã số thuế này đã được đăng ký cho một công ty khác.");
+        }
+        employerCompanyRepository.insertCompany(employerId, req.name().trim(),
+                blankToNull(req.legalName()), taxCode, blankToNull(req.website()),
+                blankToNull(req.industry()), blankToNull(req.size()),
+                blankToNull(req.address()), blankToNull(req.description()),
+                blankToNull(req.logo()));
+        long newId = employerCompanyRepository.lastInsertId();
+        return getCompanyProfile(employerId, (int) newId);
+    }
+
     @Transactional
     public CompanyProfile updateCompanyProfile(
             int employerId, int companyId, CompanyUpdateRequest req) {
@@ -897,6 +921,11 @@ public class EmployerService {
 
     private static String str(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    // Chuỗi trống / chỉ gồm khoảng trắng -> null (trường không bắt buộc).
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static LocalDateTime toDateTime(Object value) {

@@ -179,6 +179,16 @@ public class EmployerController {
         int employerId = employerAccess.requireEmployerId(request);
         return employerService.getCompanyProfile(employerId, companyId);
     }
+    // Nhà tuyển dụng tự tạo công ty cho chính mình (công ty gắn vào
+    // tài khoản đang đăng nhập, trạng thái chờ xác thực).
+    @PostMapping("/company")
+    public CompanyProfile createCompany(
+            @RequestBody CompanyUpdateRequest body,
+            HttpServletRequest request) {
+        int employerId = employerAccess.requireEmployerId(request);
+        return employerService.createCompany(employerId, body);
+    }
+
 
     @PutMapping("/company/{id}")
     public CompanyProfile updateCompany(

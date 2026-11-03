@@ -127,111 +127,111 @@ export default function EmployerJobEdit() {
   }
 
   return (
-    <>
-      <EmployerPageHeader
-        title={isEdit ? "Sửa tin tuyển dụng" : "Đăng tin mới"}
-        description={isEdit ? "Cập nhật nội dung tin của công ty bạn." : "Điền thông tin vị trí cần tuyển."}
-        action={<Link to="/employer/jobs" className="emp-btn">← Về danh sách</Link>}
-      />
-      {companies.length === 0 && (
-        <p className="emp-error">
-          Tài khoản của bạn chưa sở hữu công ty nào trong hệ thống nên chưa đăng tin được.
-          Hãy liên hệ quản trị viên để được gắn công ty.
-        </p>
-      )}
+      <>
+        <EmployerPageHeader
+            title={isEdit ? "Sửa tin tuyển dụng" : "Đăng tin mới"}
+            description={isEdit ? "Cập nhật nội dung tin của công ty bạn." : "Điền thông tin vị trí cần tuyển."}
+            action={<Link to="/employer/jobs" className="emp-btn">← Về danh sách</Link>}
+        />
+        {companies.length === 0 && (
+            <p className="emp-error">
+              Tài khoản của bạn chưa sở hữu công ty nào trong hệ thống nên chưa đăng tin được.{" "}
+              <Link to="/employer/company" className="emp-link">Tạo hồ sơ công ty ngay →</Link>
+            </p>
+        )}
 
-      <form className="emp-panel" onSubmit={submit}>
-        <div className="emp-form-grid">
-          <label className="emp-field">
-            <FieldLabel required>Công ty đăng tin</FieldLabel>
-            <select className="emp-input" value={form.companyId} onChange={(e) => set("companyId", e.target.value)} disabled={isEdit}>
-              <option value="">— Chọn công ty —</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-          <label className="emp-field">
-            <FieldLabel required>Tên vị trí</FieldLabel>
-            <input className="emp-input" value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="VD: Lập trình viên Java" />
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Địa điểm</FieldLabel>
-            <input className="emp-input" value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="VD: TP. Hồ Chí Minh" />
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Hình thức</FieldLabel>
-            <select className="emp-input" value={form.jobType} onChange={(e) => set("jobType", e.target.value)}>
-              {JOB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Cấp bậc</FieldLabel>
-            <select className="emp-input" value={form.level} onChange={(e) => set("level", e.target.value)}>
-              {LEVELS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-            </select>
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Số lượng tuyển</FieldLabel>
-            <input className="emp-input" type="number" min="1" value={form.vacancies} onChange={(e) => set("vacancies", e.target.value)} />
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Lương tối thiểu (VNĐ)</FieldLabel>
-            <input className="emp-input" type="number" min="0" value={form.salaryMin} onChange={(e) => set("salaryMin", e.target.value)} placeholder="Để trống = thương lượng" />
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Lương tối đa (VNĐ)</FieldLabel>
-            <input className="emp-input" type="number" min="0" value={form.salaryMax} onChange={(e) => set("salaryMax", e.target.value)} />
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Đơn vị lương</FieldLabel>
-            <select className="emp-input" value={form.salaryUnit} onChange={(e) => set("salaryUnit", e.target.value)}>
-              <option value="month">Theo tháng</option>
-              <option value="hour">Theo giờ</option>
-              <option value="project">Theo dự án</option>
-            </select>
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Thời gian làm việc</FieldLabel>
-            <input className="emp-input" value={form.workingSchedule} onChange={(e) => set("workingSchedule", e.target.value)} placeholder="VD: Thứ 2 – Thứ 6, 8h – 17h" />
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Hạn nộp hồ sơ</FieldLabel>
-            <input className="emp-input" type="date" value={form.deadline} onChange={(e) => set("deadline", e.target.value)} />
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Trạng thái</FieldLabel>
-            <select className="emp-input" value={form.status} onChange={(e) => set("status", e.target.value)}>
-              <option value="open">Đăng luôn (Đang hiển thị)</option>
-              <option value="draft">Lưu nháp</option>
-              <option value="closed">Đã đóng</option>
-            </select>
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Số ngày hiển thị</FieldLabel>
-            <input className="emp-input" type="number" min="1" value={form.displayDays} onChange={(e) => set("displayDays", e.target.value)} />
-          </label>
-          <label className="emp-field">
-            <FieldLabel>Chi phí Token / tin</FieldLabel>
-            <input className="emp-input" type="number" min="0" value={form.tokenCost} onChange={(e) => set("tokenCost", e.target.value)} />
-          </label>
-        </div>
+        <form className="emp-panel" onSubmit={submit}>
+          <div className="emp-form-grid">
+            <label className="emp-field">
+              <FieldLabel required>Công ty đăng tin</FieldLabel>
+              <select className="emp-input" value={form.companyId} onChange={(e) => set("companyId", e.target.value)} disabled={isEdit}>
+                <option value="">— Chọn công ty —</option>
+                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label className="emp-field">
+              <FieldLabel required>Tên vị trí</FieldLabel>
+              <input className="emp-input" value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="VD: Lập trình viên Java" />
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Địa điểm</FieldLabel>
+              <input className="emp-input" value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="VD: TP. Hồ Chí Minh" />
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Hình thức</FieldLabel>
+              <select className="emp-input" value={form.jobType} onChange={(e) => set("jobType", e.target.value)}>
+                {JOB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Cấp bậc</FieldLabel>
+              <select className="emp-input" value={form.level} onChange={(e) => set("level", e.target.value)}>
+                {LEVELS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+              </select>
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Số lượng tuyển</FieldLabel>
+              <input className="emp-input" type="number" min="1" value={form.vacancies} onChange={(e) => set("vacancies", e.target.value)} />
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Lương tối thiểu (VNĐ)</FieldLabel>
+              <input className="emp-input" type="number" min="0" value={form.salaryMin} onChange={(e) => set("salaryMin", e.target.value)} placeholder="Để trống = thương lượng" />
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Lương tối đa (VNĐ)</FieldLabel>
+              <input className="emp-input" type="number" min="0" value={form.salaryMax} onChange={(e) => set("salaryMax", e.target.value)} />
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Đơn vị lương</FieldLabel>
+              <select className="emp-input" value={form.salaryUnit} onChange={(e) => set("salaryUnit", e.target.value)}>
+                <option value="month">Theo tháng</option>
+                <option value="hour">Theo giờ</option>
+                <option value="project">Theo dự án</option>
+              </select>
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Thời gian làm việc</FieldLabel>
+              <input className="emp-input" value={form.workingSchedule} onChange={(e) => set("workingSchedule", e.target.value)} placeholder="VD: Thứ 2 – Thứ 6, 8h – 17h" />
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Hạn nộp hồ sơ</FieldLabel>
+              <input className="emp-input" type="date" value={form.deadline} onChange={(e) => set("deadline", e.target.value)} />
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Trạng thái</FieldLabel>
+              <select className="emp-input" value={form.status} onChange={(e) => set("status", e.target.value)}>
+                <option value="open">Đăng luôn (Đang hiển thị)</option>
+                <option value="draft">Lưu nháp</option>
+                <option value="closed">Đã đóng</option>
+              </select>
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Số ngày hiển thị</FieldLabel>
+              <input className="emp-input" type="number" min="1" value={form.displayDays} onChange={(e) => set("displayDays", e.target.value)} />
+            </label>
+            <label className="emp-field">
+              <FieldLabel>Chi phí Token / tin</FieldLabel>
+              <input className="emp-input" type="number" min="0" value={form.tokenCost} onChange={(e) => set("tokenCost", e.target.value)} />
+            </label>
+          </div>
 
-        <label className="emp-field" style={{ marginTop: 14 }}>
-          <FieldLabel>Mô tả công việc</FieldLabel>
-          <textarea className="emp-input" rows={6} value={form.description} onChange={(e) => set("description", e.target.value)} />
-        </label>
-        <label className="emp-field" style={{ marginTop: 14 }}>
-          <FieldLabel>Yêu cầu ứng viên</FieldLabel>
-          <textarea className="emp-input" rows={5} value={form.requirements} onChange={(e) => set("requirements", e.target.value)} />
-        </label>
+          <label className="emp-field" style={{ marginTop: 14 }}>
+            <FieldLabel>Mô tả công việc</FieldLabel>
+            <textarea className="emp-input" rows={6} value={form.description} onChange={(e) => set("description", e.target.value)} />
+          </label>
+          <label className="emp-field" style={{ marginTop: 14 }}>
+            <FieldLabel>Yêu cầu ứng viên</FieldLabel>
+            <textarea className="emp-input" rows={5} value={form.requirements} onChange={(e) => set("requirements", e.target.value)} />
+          </label>
 
-        {formError && <p className="emp-form-error">{formError}</p>}
-        <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-          <button type="submit" className="emp-btn emp-btn--primary" disabled={saving || companies.length === 0}>
-            {saving ? "Đang lưu..." : <>{isEdit ? "Lưu thay đổi" : "Đăng tin"} <IconCheck size={17} /></>}
-          </button>
-          <Link to="/employer/jobs" className="emp-btn">Hủy</Link>
-        </div>
-      </form>
-    </>
+          {formError && <p className="emp-form-error">{formError}</p>}
+          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+            <button type="submit" className="emp-btn emp-btn--primary" disabled={saving || companies.length === 0}>
+              {saving ? "Đang lưu..." : <>{isEdit ? "Lưu thay đổi" : "Đăng tin"} <IconCheck size={17} /></>}
+            </button>
+            <Link to="/employer/jobs" className="emp-btn">Hủy</Link>
+          </div>
+        </form>
+      </>
   );
 }

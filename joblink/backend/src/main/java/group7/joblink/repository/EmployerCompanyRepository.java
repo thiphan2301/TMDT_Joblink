@@ -22,6 +22,38 @@ public interface EmployerCompanyRepository extends JpaRepository<Company, Intege
         """, nativeQuery = true)
     List<Object[]> findProfileRow(@Param("companyId") Integer companyId);
 
+    // Đếm số công ty đã dùng một mã số thuế (cột tax_code có UNIQUE,
+    // kiểm tra trước khi tạo để báo lỗi rõ ràng thay vì lỗi 500).
+    @Query(value = "SELECT COUNT(*) FROM companies WHERE tax_code = :taxCode",
+            nativeQuery = true)
+    long countByTaxCode(@Param("taxCode") String taxCode);
+
+    // Tạo công ty mới gắn thẳng cho chính nhà tuyển dụng (owner_id =
+    // employerId). Trạng thái xác thực khởi điểm 'pending' — quản trị
+    // viên duyệt sau, giống mặc định của bảng.
+    @Modifying
+    @Query(value = """
+        INSERT INTO companies (owner_id, name, legal_name, tax_code, website,
+                               industry, size, address, description, logo,
+                               verification_status)
+        VALUES (:employerId, :name, :legalName, :taxCode, :website,
+                :industry, :size, :address, :description, :logo, 'pending')
+        """, nativeQuery = true)
+    int insertCompany(@Param("employerId") Integer employerId,
+                      @Param("name") String name,
+                      @Param("legalName") String legalName,
+                      @Param("taxCode") String taxCode,
+                      @Param("website") String website,
+                      @Param("industry") String industry,
+                      @Param("size") String size,
+                      @Param("address") String address,
+                      @Param("description") String description,
+                      @Param("logo") String logo);
+
+    @Query(value = "SELECT LAST_INSERT_ID()", nativeQuery = true)
+    Long lastInsertId();
+
+
     // Chỉ đổi logo (khi tải ảnh lên từ máy tính).
     @Modifying
     @Query(value = """
