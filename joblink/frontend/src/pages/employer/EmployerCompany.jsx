@@ -6,7 +6,7 @@ import {
 } from "../../components/employer/EmployerIcons.jsx";
 import useEmployerData from "../../hooks/useEmployerData.js";
 import {
-  getEmployerCompanies, getCompanyProfile, updateCompanyProfile,
+  getEmployerCompanies, getCompanyProfile, createCompany, updateCompanyProfile,
   uploadCompanyLogo, uploadCompanyCover,
 } from "../../services/employerService.js";
 
@@ -57,7 +57,7 @@ function initialForm(profile) {
 }
 
 export default function EmployerCompany() {
-  const { data: companies, error: companiesError } = useEmployerData(getEmployerCompanies, []);
+  const { data: companies, error: companiesError, reload: reloadCompanies } = useEmployerData(getEmployerCompanies, []);
   const [selectedId, setSelectedId] = useState("");
   // Chưa chọn tay thì mặc định là công ty đầu tiên trong danh sách.
   const companyId = selectedId
@@ -79,10 +79,15 @@ export default function EmployerCompany() {
         {companiesError && <p className="emp-error">{companiesError}</p>}
         {profileError && <p className="emp-error">{profileError}</p>}
         {companies && companies.length === 0 && (
-            <p className="emp-error">
-              Tài khoản của bạn chưa sở hữu công ty nào trong hệ thống. Hãy liên hệ
-              quản trị viên để được gắn công ty.
-            </p>
+            <CreateCompanyPanel
+                onCreated={(created) => {
+                  setSelectedId(String(created.id));
+                  reloadCompanies();
+                  // Báo EmployerLayout nạp lại để chip công ty trên khung
+                  // hiện ngay công ty vừa tạo.
+                  window.dispatchEvent(new Event("joblink:company-updated"));
+                }}
+            />
         )}
 
         {companies && companies.length > 1 && (
@@ -105,6 +110,111 @@ export default function EmployerCompany() {
             />
         )}
       </>
+  );
+}
+
+// Form TỰ TẠO công ty — hiện khi tài khoản chưa sở hữu công ty nào
+// (trước đây chỗ này là banner "hãy liên hệ quản trị viên" khiến tài
+// khoản tự đăng ký bị kẹt). Tạo xong gọi onCreated để trang chuyển
+// ngay sang form hồ sơ của công ty vừa tạo. Công ty mới ở trạng thái
+// "Chờ xác thực" (mặc định của database), quản trị viên duyệt sau;
+// logo/ảnh bìa bổ sung ngay trong form hồ sơ sau khi tạo.
+function CreateCompanyPanel({ onCreated }) {
+  const [form, setForm] = useState({
+    name: "", legalName: "", taxCode: "", website: "",
+    industry: INDUSTRIES[0], size: SIZES[1], address: "", description: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  function set(field, value) {
+    setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setFormError("");
+    if (!form.name.trim()) return setFormError("Vui lòng nhập tên công ty.");
+    setSaving(true);
+    try {
+      const created = await createCompany({
+        name: form.name.trim(),
+        legalName: form.legalName || null,
+        taxCode: form.taxCode || null,
+        website: form.website || null,
+        industry: form.industry || null,
+        size: form.size || null,
+        address: form.address || null,
+        description: form.description || null,
+        logo: null,
+        cover: null,
+      });
+      onCreated(created);
+    } catch (err) {
+      setFormError(err.message || "Không tạo được công ty.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+      <form className="emp-panel" onSubmit={submit}>
+        <h3 className="emp-section-bar">Tạo hồ sơ công ty của bạn</h3>
+        <p className="emp-muted" style={{ margin: "0 0 16px", lineHeight: 1.6 }}>
+          Tài khoản của bạn chưa gắn với công ty nào. Hãy tạo hồ sơ công ty —
+          chỉ mất một phút — để bắt đầu đăng tin tuyển dụng và tìm ứng viên.
+          Công ty mới sẽ ở trạng thái <strong>Chờ xác thực</strong> và được
+          quản trị viên xét duyệt sau; bạn vẫn đăng tin và dùng các tính
+          năng bình thường, logo và ảnh bìa bổ sung ngay tại trang này sau
+          khi tạo.
+        </p>
+        <div className="emp-form-grid">
+          <label className="emp-field">
+            <FieldLabel required>Tên công ty</FieldLabel>
+            <input className="emp-input" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="VD: Công ty TNHH ABC" />
+          </label>
+          <label className="emp-field">
+            <FieldLabel>Mã số thuế</FieldLabel>
+            <input className="emp-input" value={form.taxCode} onChange={(e) => set("taxCode", e.target.value)} />
+          </label>
+          <label className="emp-field">
+            <FieldLabel>Lĩnh vực hoạt động</FieldLabel>
+            <select className="emp-input" value={form.industry} onChange={(e) => set("industry", e.target.value)}>
+              {INDUSTRIES.map((i) => <option key={i} value={i}>{i}</option>)}
+            </select>
+          </label>
+          <label className="emp-field">
+            <FieldLabel>Quy mô công ty</FieldLabel>
+            <select className="emp-input" value={form.size} onChange={(e) => set("size", e.target.value)}>
+              {SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="emp-field">
+            <FieldLabel>Website</FieldLabel>
+            <input className="emp-input" value={form.website} onChange={(e) => set("website", e.target.value)} placeholder="VD: www.congty.vn" />
+          </label>
+          <label className="emp-field">
+            <FieldLabel>Tên pháp lý</FieldLabel>
+            <input className="emp-input" value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="Tên đầy đủ trên giấy phép kinh doanh" />
+          </label>
+          <label className="emp-field" style={{ gridColumn: "1 / -1" }}>
+            <FieldLabel>Địa chỉ trụ sở chính</FieldLabel>
+            <input className="emp-input" value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="VD: Tòa nhà TechTower, 123 Lê Lợi, Quận 1, TP. Hồ Chí Minh" />
+          </label>
+          <label className="emp-field" style={{ gridColumn: "1 / -1" }}>
+            <FieldLabel>Giới thiệu công ty</FieldLabel>
+            <textarea className="emp-input" rows={5} value={form.description}
+                      onChange={(e) => set("description", e.target.value)}
+                      placeholder="Lĩnh vực hoạt động, sản phẩm chính, văn hóa làm việc..." />
+          </label>
+        </div>
+        {formError && <p className="emp-form-error" style={{ marginTop: 12 }}>{formError}</p>}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <button type="submit" className="emp-btn emp-btn--primary" disabled={saving}>
+            {saving ? "Đang tạo..." : <><IconCheck size={17} /> Tạo công ty</>}
+          </button>
+        </div>
+      </form>
   );
 }
 

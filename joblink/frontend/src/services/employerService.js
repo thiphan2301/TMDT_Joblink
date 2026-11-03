@@ -114,6 +114,12 @@ export function updateCompanyProfile(id, payload) {
   return request(`/api/employer/company/${id}`, jsonOptions("PUT", payload));
 }
 
+// Nhà tuyển dụng tự tạo công ty cho chính mình — trả về hồ sơ công ty
+// vừa tạo (trạng thái chờ xác thực).
+export function createCompany(payload) {
+  return request(`/api/employer/company`, jsonOptions("POST", payload));
+}
+
 // Tải logo công ty lên từ máy tính (multipart) — trả về hồ sơ đã cập nhật.
 export async function uploadCompanyLogo(id, file) {
   const formData = new FormData();
