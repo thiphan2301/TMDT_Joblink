@@ -2,8 +2,11 @@ package group7.joblink.service;
 
 import group7.joblink.dto.response.PublicResponses.CompanyJobCard;
 import group7.joblink.dto.response.PublicResponses.CompanyPageResponse;
+import group7.joblink.dto.response.PublicResponses.CompanyReviewPage;
 import group7.joblink.dto.response.PublicResponses.CompanyReviewRow;
 import group7.joblink.repository.PublicCompanyRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,8 +72,8 @@ public class PublicCompanyService {
         List<CompanyReviewRow> reviews = companyRepository
             .findReviews(companyId).stream()
             .map(r -> new CompanyReviewRow(
-                str(r[0]), str(r[1]), toInt(r[2]), str(r[3]),
-                toTime(r[4]), str(r[5])))
+                toInt(r[0]), str(r[1]), str(r[2]), toInt(r[3]), str(r[4]),
+                str(r[5]), toTime(r[6]), str(r[7])))
             .toList();
 
         return new CompanyPageResponse(
@@ -79,6 +82,45 @@ public class PublicCompanyService {
             str(c[10]), toDecimal(c[11]), toDecimal(c[12]),
             Math.round(average * 10.0) / 10.0, reviewCount,
             distribution, jobs, reviews);
+    }
+
+    @Transactional(readOnly = true)
+    public CompanyReviewPage getCompanyReviews(
+            int companyId,
+            String sentiment,
+            int page,
+            int size
+    ) {
+        if (!companyRepository.existsById(companyId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Không tìm thấy công ty.");
+        }
+
+        String filter = "all".equals(sentiment) ? null : sentiment;
+        if (filter != null
+                && !List.of("positive", "negative", "neutral").contains(filter)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Bộ lọc cảm xúc không hợp lệ."
+            );
+        }
+
+        Page<Object[]> rows = companyRepository.findReviewPage(
+                companyId, filter, PageRequest.of(page, size));
+        List<CompanyReviewRow> content = rows.getContent().stream()
+                .map(r -> new CompanyReviewRow(
+                        toInt(r[0]), str(r[1]), str(r[2]), toInt(r[3]),
+                        str(r[4]), str(r[5]), toTime(r[6]), str(r[7])))
+                .toList();
+
+        return new CompanyReviewPage(
+                content,
+                rows.getNumber(),
+                rows.getSize(),
+                rows.getTotalElements(),
+                rows.getTotalPages(),
+                sentiment
+        );
     }
 
     private static String str(Object v) {

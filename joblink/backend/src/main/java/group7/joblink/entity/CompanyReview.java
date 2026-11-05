@@ -34,15 +34,20 @@ public class CompanyReview {
     @JoinColumn(name = "candidate_id", nullable = false)
     private User user;
 
-    @Column(name = "rating", columnDefinition = "INT", nullable = true)
+    @Column(name = "rating")
     private Integer rating;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(name = "sentiment", length = 8)
+    private String sentiment;
+
+    @Column(columnDefinition = "TEXT")
     private String content;
 
-    private String status;
-    @Column(name="created_at")
-    private LocalDateTime  createdAt;
+    @Column(nullable = false, length = 20)
+    private String status = "visible";
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;

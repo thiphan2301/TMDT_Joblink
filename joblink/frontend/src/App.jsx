@@ -23,6 +23,7 @@ import MessagesPage from "./pages/candidate/MessagesPage.jsx";
 import AssistantPage from "./pages/candidate/AssistantPage.jsx";
 import CandidateWalletPage from "./pages/candidate/CandidateWalletPage.jsx";
 import CandidateEmptyPage from "./pages/candidate/CandidateEmptyPage.jsx";
+import CompanyPage from "./pages/candidate/CompanyPage.jsx";
 
 // Employer Components (khu vực nhà tuyển dụng /employer)
 import EmployerLayout from "./components/employer/EmployerLayout.jsx";
@@ -105,6 +106,9 @@ export default function App() {
     const location = useLocation();
     const currentPage =
         ROUTE_PAGES[location.pathname] ||
+        (location.pathname.startsWith("/companies/")
+            ? { id: "discover", label: "Hồ sơ công ty" }
+            : null) ||
         (location.pathname.startsWith("/jobs/")
             ? ROUTE_PAGES["/jobs"]
             : selectedPage);
@@ -304,6 +308,10 @@ export default function App() {
                     <Route path="/discover" element={<DiscoverJobs />} />
                     <Route path="/jobs" element={<JobsPage />} />
                     <Route path="/jobs/:id" element={<JobDetailPage />} />
+                    <Route
+                        path="/companies/:id"
+                        element={<CompanyPage currentUser={currentUser} />}
+                    />
 
                     {/* --- KHÔNG GIAN ỨNG VIÊN (trong khung gốc) --- */}
                     <Route path="/dashboard" element={<DashboardPage />} />

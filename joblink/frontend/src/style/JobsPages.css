@@ -379,6 +379,12 @@
   font-size: 22px;
 }
 
+.company-profile-link {
+  display: inline-flex;
+  margin: 0 0 12px;
+  text-decoration: none;
+}
+
 .detail-text {
   color: #677c96;
   line-height: 1.9;

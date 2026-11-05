@@ -41,3 +41,32 @@ export function getCandidateOverview() {
 export function getCompanyPage(id) {
   return request(`/api/companies/${id}`);
 }
+
+export function getCompanyReviews(id, { sentiment = "all", page = 0, size = 10 } = {}) {
+  const query = new URLSearchParams({ sentiment, page: String(page), size: String(size) });
+  return request(`/api/companies/${id}/reviews?${query}`);
+}
+
+export function getMyCompanyReview(companyId) {
+  return request(`/api/review/${companyId}/mine`);
+}
+
+export function createCompanyReview(companyId, review) {
+  return request(`/api/review/${companyId}/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(review),
+  });
+}
+
+export function updateCompanyReview(companyId, review) {
+  return request(`/api/review/${companyId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(review),
+  });
+}
+
+export function deleteCompanyReview(companyId) {
+  return request(`/api/review/${companyId}`, { method: "DELETE" });
+}

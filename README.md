@@ -55,3 +55,10 @@ Flyway tự áp dụng các migration chưa chạy khi ứng dụng khởi độ
 
 **Lưu ý:** Không commit file `application-local.properties` chứa cấu hình
 cá nhân hoặc mật khẩu lên GitHub.
+
+**4. Chạy model Phân loại bình luận**
+Mở terminal và cd vào thư mục \sentiment-service
+chạy lệnhL
+```text
+.\run.ps1
+```

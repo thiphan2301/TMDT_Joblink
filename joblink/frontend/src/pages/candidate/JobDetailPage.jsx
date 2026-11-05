@@ -200,6 +200,11 @@ export default function JobDetailPage() {
                 <aside className="detail-company">
                     <CompanyLogo name={job.companyName} src={job.companyLogo} />
                     <h2>{job.companyName}</h2>
+                    {job.companyId && (
+                        <Link className="jobs-outline company-profile-link" to={`/companies/${job.companyId}`}>
+                            Xem hồ sơ công ty
+                        </Link>
+                    )}
 
                     {job.verificationStatus === "verified" && (
                         <p className="detail-verified">✓ Nhà tuyển dụng xác thực</p>

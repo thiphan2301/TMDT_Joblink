@@ -159,6 +159,13 @@ public class ChatService {
     }
 
     @Transactional
+    public ConversationRow openCompanyConversation(int userId, int companyId) {
+        Integer employerId = companyRepository.findOwnerIdByCompanyId(companyId)
+                .orElseThrow(() -> notFound("Không tìm thấy công ty."));
+        return openConversation(userId, new OpenConversationRequest(employerId, null));
+    }
+
+    @Transactional
     public SentMessage sendMessage(int userId, int conversationId, String content) {
         Conversation conversation = requireParticipant(userId, conversationId);
         if (conversation.getEmployerId().equals(userId)) {

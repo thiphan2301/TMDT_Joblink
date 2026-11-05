@@ -55,6 +55,14 @@ public class ChatController {
                 .body(chatService.openConversation(userId, body));
     }
 
+    @PostMapping("/conversations/company/{companyId}")
+    public ResponseEntity<ConversationRow> openCompanyConversation(
+            @PathVariable int companyId, HttpServletRequest request) {
+        int userId = CurrentUser.requireId(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(chatService.openCompanyConversation(userId, companyId));
+    }
+
     @GetMapping("/conversations/{id}/messages")
     public List<MessageRow> messages(@PathVariable int id,
                                      HttpServletRequest request) {
