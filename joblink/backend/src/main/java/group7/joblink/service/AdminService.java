@@ -12,6 +12,7 @@ import group7.joblink.entity.Subscription;
 import group7.joblink.entity.TokenPackage;
 import group7.joblink.entity.User;
 import group7.joblink.repository.AdminCandidateProfileRepository;
+import group7.joblink.repository.AdminCompanyRepository;
 import group7.joblink.repository.AdminJobRepository;
 import group7.joblink.repository.AdminSocialAccountRepository;
 import group7.joblink.repository.AdminSubscriptionRepository;
@@ -66,6 +67,7 @@ public class AdminService {
     private final AdminUserRepository userRepository;
     private final AdminCandidateProfileRepository profileRepository;
     private final AdminSocialAccountRepository socialAccountRepository;
+    private final AdminCompanyRepository adminCompanyRepository;
     private final CompanyRepository companyRepository;
     private final AdminJobRepository jobRepository;
     private final OrderRepository orderRepository;
@@ -84,6 +86,7 @@ public class AdminService {
     public AdminService(AdminUserRepository userRepository,
                         AdminCandidateProfileRepository profileRepository,
                         AdminSocialAccountRepository socialAccountRepository,
+                        AdminCompanyRepository adminCompanyRepository,
                         CompanyRepository companyRepository,
                         AdminJobRepository jobRepository,
                         OrderRepository orderRepository,
@@ -94,6 +97,7 @@ public class AdminService {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.socialAccountRepository = socialAccountRepository;
+        this.adminCompanyRepository = adminCompanyRepository;
         this.companyRepository = companyRepository;
         this.jobRepository = jobRepository;
         this.orderRepository = orderRepository;
@@ -350,12 +354,12 @@ public class AdminService {
             name = profileNames != null
                     ? profileNames.get(user.getId())
                     : profileRepository.findById(user.getId())
-                            .map(CandidateProfile::getFullName).orElse(null);
+                      .map(CandidateProfile::getFullName).orElse(null);
         } else if (user.getRole() == User.Role.employer) {
             name = companyNames != null
                     ? companyNames.get(user.getId())
                     : companyRepository.findFirstByOwnerId(user.getId())
-                            .map(Company::getName).orElse(null);
+                      .map(Company::getName).orElse(null);
         }
         if (name == null || name.isBlank()) {
             String email = user.getEmail();
@@ -572,9 +576,29 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public List<CompanyRow> getCompanies() {
-        return companyRepository.findAllByOrderByNameAsc().stream()
-                .map(c -> new CompanyRow(c.getId(), c.getName(), c.getIndustry()))
+        return adminCompanyRepository.findAdminRows().stream()
+                .map(r -> new CompanyRow(r.getId(), r.getName(), r.getIndustry(),
+                        r.getLegalName(), r.getTaxCode(), r.getSize(),
+                        r.getVerificationStatus(), r.getOwnerId(), r.getOwnerEmail()))
                 .toList();
+    }
+
+    // Admin duyệt hồ sơ công ty: verified (đã xác thực) / rejected (từ chối)
+    // / pending (đưa về chờ xác thực). Trạng thái này không khóa chức năng
+    // nào của nhà tuyển dụng — chỉ là nhãn hiển thị cho ứng viên.
+    @Transactional
+    public void setCompanyVerification(int companyId, String status) {
+        Company.VerificationStatus target;
+        try {
+            target = Company.VerificationStatus.valueOf(
+                    status == null ? "" : status.trim().toLowerCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw badRequest("Trạng thái xác thực không hợp lệ.");
+        }
+        if (!adminCompanyRepository.existsById(companyId)) {
+            throw notFound("Không tìm thấy công ty.");
+        }
+        adminCompanyRepository.updateVerificationStatus(companyId, target);
     }
 
     @Transactional

@@ -47,6 +47,7 @@ import AdminJobs from "./pages/admin/AdminJobs.jsx";
 import AdminJobEdit from "./pages/admin/AdminJobEdit.jsx";
 import AdminReports from "./pages/admin/AdminReports.jsx";
 import AdminPackages from "./pages/admin/AdminPackages.jsx";
+import AdminCompanies from "./pages/admin/AdminCompanies.jsx";
 
 // CSS của các trang ứng viên (Ví Token, Trợ lý AI, Tin nhắn, trang
 // trống) — trước đây do CandidateLayout nạp, nay App nạp trực tiếp
@@ -375,6 +376,7 @@ export default function App() {
                         <Route path="jobs/:id/edit" element={<AdminJobEdit />} />
                         <Route path="reports" element={<AdminReports />} />
                         <Route path="packages" element={<AdminPackages />} />
+                        <Route path="companies" element={<AdminCompanies />} />
                     </Route>
 
                     <Route

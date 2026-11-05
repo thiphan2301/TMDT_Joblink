@@ -75,6 +75,11 @@ export function getAdminCompanies() {
   return request("/api/admin/companies");
 }
 
+// Duyệt hồ sơ công ty: status = "verified" | "rejected" | "pending".
+export async function setAdminCompanyVerification(id, status) {
+  return request(`/api/admin/companies/${id}/verification`, jsonOptions("PATCH", { status }));
+}
+
 export async function createAdminJob(payload) {
   return request("/api/admin/jobs", jsonOptions("POST", payload));
 }
@@ -102,7 +107,7 @@ export function getAdminJobApplications(jobId) {
 // Nhận chuỗi (period cũ) hoặc object { period, from, to }.
 export function getAdminReport(options = {}) {
   const { period = "6months", from, to } =
-    typeof options === "string" ? { period: options } : options;
+      typeof options === "string" ? { period: options } : options;
   const params = new URLSearchParams({ period });
   if (from) params.set("from", from);
   if (to) params.set("to", to);
