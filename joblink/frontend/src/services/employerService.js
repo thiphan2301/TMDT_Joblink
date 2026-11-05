@@ -94,6 +94,26 @@ export function setApplicationStatus(id, status) {
   return request(`/api/employer/applications/${id}/status`, jsonOptions("PATCH", { status }));
 }
 
+/* ---------------- Mời phỏng vấn / từ chối ---------------- */
+
+// Lời mời phỏng vấn mới nhất của đơn (kèm phản hồi của ứng viên);
+// null nếu chưa mời (API trả 204).
+export async function getApplicationInterview(id) {
+  const data = await request(`/api/employer/applications/${id}/interview`);
+  return data?.id ? data : null;
+}
+
+// scheduledAt dạng "2026-11-10T09:30" (giá trị của ô datetime-local).
+export function inviteToInterview(id, { scheduledAt, location, notes }) {
+  return request(`/api/employer/applications/${id}/interview`,
+      jsonOptions("POST", { scheduledAt, location, notes }));
+}
+
+// reason: lý do từ chối hiển thị cho ứng viên, có thể bỏ trống.
+export function rejectApplication(id, reason) {
+  return request(`/api/employer/applications/${id}/reject`, jsonOptions("POST", { reason }));
+}
+
 /* ---------------- Tìm kiếm ứng viên ---------------- */
 
 export function searchCandidates({ q, skill, location } = {}) {

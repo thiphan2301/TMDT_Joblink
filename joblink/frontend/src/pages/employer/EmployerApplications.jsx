@@ -3,6 +3,9 @@ import { Link, useNavigate } from "react-router";
 import { EmployerPageHeader } from "../../components/employer/EmployerLayout.jsx";
 import { EmployerModal } from "../../components/employer/EmployerModal.jsx";
 import {
+  InviteInterviewModal, RejectApplicationModal, InterviewSummary,
+} from "../../components/employer/InterviewModals.jsx";
+import {
   IconEye, IconChat, IconUsers, IconCalendar, IconCheck, IconInbox,
   IconDownload, IconFilter, IconSearch, IconStar, IconDots,
 } from "../../components/employer/EmployerIcons.jsx";
@@ -77,6 +80,9 @@ export default function EmployerApplications() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [detailId, setDetailId] = useState(null);
+  // Đơn đang mở hộp thoại mời phỏng vấn / từ chối ({ id, candidateName, status }).
+  const [inviteApp, setInviteApp] = useState(null);
+  const [rejectApp, setRejectApp] = useState(null);
   const [menuId, setMenuId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -142,15 +148,35 @@ export default function EmployerApplications() {
     URL.revokeObjectURL(url);
   }
 
+  async function reloadAll() {
+    await reload();
+    await reloadSummary();
+    await reloadInvited();
+    await reloadPending();
+  }
+
+  // Mời phỏng vấn cần nhập lịch, từ chối có thể kèm lý do -> mở hộp thoại;
+  // các trạng thái khác đổi ngay.
+  function chooseStatus(app, next) {
+    if (next === "invited") setInviteApp(app);
+    else if (next === "rejected") setRejectApp(app);
+    else changeStatus(app, next);
+  }
+
+  async function finishDecision(message) {
+    setInviteApp(null);
+    setRejectApp(null);
+    setActionError("");
+    await reloadAll();
+    setNotice(message);
+  }
+
   async function changeStatus(app, next) {
     setBusy(true);
     setActionError("");
     try {
       await setApplicationStatus(app.id, next);
-      await reload();
-      await reloadSummary();
-      await reloadInvited();
-      await reloadPending();
+      await reloadAll();
       setNotice(`Đã chuyển đơn của ${app.candidateName} sang "${APPLICATION_STATUS_LABELS[next]}".`);
     } catch (err) {
       setActionError(err.message || "Không đổi được trạng thái.");
@@ -317,7 +343,7 @@ export default function EmployerApplications() {
             </>
         )}
 
-        <div className="emp-card-table">
+        <div className="emp-card-table emp-card-table--menus">
           <div className="emp-card-table__toolbar" style={{ justifyContent: "space-between" }}>
             <div className="emp-tabs">
               <button type="button" className={!status ? "is-active" : ""}
@@ -422,9 +448,16 @@ export default function EmployerApplications() {
                               </button>
                               {menuId === app.id && (
                                   <div className={`emp-menu${idx === pageItems.length - 1 ? " emp-menu--up" : ""}`}>
+                                    {app.status === "invited" && (
+                                        <button type="button"
+                                                onClick={() => { setMenuId(null); setInviteApp(app); }}>
+                                          Đổi lịch phỏng vấn
+                                        </button>
+                                    )}
                                     {STATUSES.filter((s) => s !== app.status).map((s) => (
                                         <button key={s} type="button"
-                                                onClick={() => { setMenuId(null); changeStatus(app, s); }}>
+                                                className={s === "rejected" ? "is-danger" : ""}
+                                                onClick={() => { setMenuId(null); chooseStatus(app, s); }}>
                                           Chuyển: {APPLICATION_STATUS_LABELS[s]}
                                         </button>
                                     ))}
@@ -541,6 +574,30 @@ export default function EmployerApplications() {
                   setDetailId(null);
                   startChat(app);
                 }}
+                onInvite={(app) => {
+                  setDetailId(null);
+                  setInviteApp(app);
+                }}
+                onReject={(app) => {
+                  setDetailId(null);
+                  setRejectApp(app);
+                }}
+            />
+        )}
+
+        {inviteApp && (
+            <InviteInterviewModal
+                app={inviteApp}
+                onClose={() => setInviteApp(null)}
+                onDone={finishDecision}
+            />
+        )}
+
+        {rejectApp && (
+            <RejectApplicationModal
+                app={rejectApp}
+                onClose={() => setRejectApp(null)}
+                onDone={finishDecision}
             />
         )}
       </>
@@ -548,7 +605,7 @@ export default function EmployerApplications() {
 }
 
 // Chi tiết một đơn: thông tin ứng viên, thư giới thiệu, CV đính kèm.
-function ApplicationDetailModal({ applicationId, onClose, onChat }) {
+function ApplicationDetailModal({ applicationId, onClose, onChat, onInvite, onReject }) {
   const { data: detail, loading, error } = useEmployerData(
       () => getApplicationDetail(applicationId), [applicationId],
   );
@@ -595,10 +652,23 @@ function ApplicationDetailModal({ applicationId, onClose, onChat }) {
                 {detail.coverLetter && (
                     <div><dt>Thư giới thiệu</dt><dd style={{ whiteSpace: "pre-wrap" }}>{detail.coverLetter}</dd></div>
                 )}
+                {detail.status === "invited" && <InterviewSummary applicationId={detail.id} />}
               </dl>
 
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
                 <button type="button" className="emp-btn" onClick={onClose}>Đóng</button>
+                {detail.status !== "hired" && detail.status !== "rejected" && (
+                    <button type="button" className="emp-btn"
+                            onClick={() => onReject({ id: detail.id, candidateName: detail.candidateName, status: detail.status })}>
+                      Từ chối
+                    </button>
+                )}
+                {detail.status !== "hired" && (
+                    <button type="button" className="emp-btn"
+                            onClick={() => onInvite({ id: detail.id, candidateName: detail.candidateName, status: detail.status })}>
+                      <IconCalendar size={17} /> {detail.status === "invited" ? "Đổi lịch phỏng vấn" : "Mời phỏng vấn"}
+                    </button>
+                )}
                 {/* Hồ sơ đầy đủ: kỹ năng, mọi CV, các đơn đã nộp vào tin của mình. */}
                 <Link to={`/employer/candidates/${detail.candidateId}`} className="emp-btn">
                   <IconUsers size={17} /> Xem hồ sơ đầy đủ

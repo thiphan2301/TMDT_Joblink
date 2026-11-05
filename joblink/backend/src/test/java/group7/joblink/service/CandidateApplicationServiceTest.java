@@ -137,6 +137,67 @@ class CandidateApplicationServiceTest {
         assertStatus(HttpStatus.UNAUTHORIZED);
     }
 
+    @Test
+    void ungVienXacNhanThamGiaPhongVan() {
+        givenUser(User.Role.candidate);
+        Application invited = application(2, Application.Status.invited, "Frontend Developer", "Tiki");
+        InterviewInvitation invitation = interview(3, invited, LocalDateTime.now().plusDays(3), "Tầng 10");
+        when(applicationRepository.findById(2)).thenReturn(Optional.of(invited));
+        when(interviewRepository.findFirstByApplication_IdOrderByIdDesc(2)).thenReturn(Optional.of(invitation));
+
+        MyApplicationResponse.Interview result = service.respondToInterview(USER_ID, 2, "accepted");
+
+        assertThat(result.status()).isEqualTo("accepted");
+        assertThat(invitation.getStatus()).isEqualTo(InterviewInvitation.Status.accepted);
+    }
+
+    @Test
+    void khongPhanHoiDonCuaNguoiKhac() {
+        givenUser(User.Role.candidate);
+        Application other = application(2, Application.Status.invited, "Tester", "VNG");
+        ReflectionTestUtils.setField(other.getCandidate(), "userId", 99);
+        when(applicationRepository.findById(2)).thenReturn(Optional.of(other));
+
+        assertThatThrownBy(() -> service.respondToInterview(USER_ID, 2, "declined"))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void donKhongODangMoiPhongVanThiKhongPhanHoiDuoc() {
+        givenUser(User.Role.candidate);
+        when(applicationRepository.findById(9)).thenReturn(Optional.of(
+                application(9, Application.Status.rejected, "Backend Java", "FPT Software")));
+
+        assertThatThrownBy(() -> service.respondToInterview(USER_ID, 9, "accepted"))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+        verifyNoInteractions(interviewRepository);
+    }
+
+    @Test
+    void lichDaQuaThiKhongDoiPhanHoi() {
+        givenUser(User.Role.candidate);
+        Application invited = application(2, Application.Status.invited, "Frontend Developer", "Tiki");
+        InterviewInvitation past = interview(3, invited, LocalDateTime.now().minusHours(1), "Tầng 10");
+        when(applicationRepository.findById(2)).thenReturn(Optional.of(invited));
+        when(interviewRepository.findFirstByApplication_IdOrderByIdDesc(2)).thenReturn(Optional.of(past));
+
+        assertThatThrownBy(() -> service.respondToInterview(USER_ID, 2, "declined"))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+        assertThat(past.getStatus()).isEqualTo(InterviewInvitation.Status.pending);
+    }
+
+    @Test
+    void phanHoiKhongHopLe() {
+        givenUser(User.Role.candidate);
+
+        assertThatThrownBy(() -> service.respondToInterview(USER_ID, 2, "maybe"))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
     private User givenUser(User.Role role) {
         User user = new User("tran.thi.d@gmail.com", role);
         user.setId(USER_ID);
