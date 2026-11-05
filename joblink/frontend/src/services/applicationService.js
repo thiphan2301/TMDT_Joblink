@@ -50,3 +50,33 @@ export async function getMyApplications(signal) {
 
     return Array.isArray(data) ? data : [];
 }
+
+// Ứng viên phản hồi lời mời phỏng vấn: "accepted" (tham gia) | "declined" (từ chối lịch).
+// Trả về lời mời sau khi cập nhật.
+export async function respondToInterview(applicationId, response) {
+    const res = await fetch(
+        `/api/applications/${encodeURIComponent(applicationId)}/interview`,
+        {
+            method: "PATCH",
+            credentials: "same-origin",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ response }),
+        }
+    );
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+        const error = new Error(
+            data.message || `Không gửi được phản hồi. Mã lỗi: ${res.status}`
+        );
+
+        error.status = res.status;
+        throw error;
+    }
+
+    return data;
+}

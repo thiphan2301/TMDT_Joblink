@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { CalendarClock, ChevronDown, FileText, MapPin } from "lucide-react";
 import { CompanyLogo, formatSalary } from "../../components/JobCard";
-import { getMyApplications } from "../../services/applicationService";
+import { getMyApplications, respondToInterview } from "../../services/applicationService";
 import "../../style/ApplicationsPage.css";
 
 // Trạng thái đơn trong database -> nhãn, màu và lời nhắn cho ứng viên
@@ -123,7 +123,63 @@ function StatusBadge({ status }) {
     return <span className={`application-status application-status--${info.tone}`}>{info.label}</span>;
 }
 
-function ApplicationDetail({ application }) {
+// Nút xác nhận / từ chối lịch; đổi ý được cho tới giờ phỏng vấn.
+function InterviewActions({ application, onInterviewChange }) {
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState("");
+    const interview = application.interview;
+
+    if (interview.scheduledAt && new Date(interview.scheduledAt) <= new Date()) {
+        return null;
+    }
+
+    async function respond(response) {
+        if (
+            response === "declined" &&
+            !window.confirm("Bạn chắc chắn muốn từ chối lịch phỏng vấn này?")
+        ) {
+            return;
+        }
+
+        setSending(true);
+        setError("");
+        try {
+            onInterviewChange(application.id, await respondToInterview(application.id, response));
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSending(false);
+        }
+    }
+
+    return (
+        <div className="application-interview__actions">
+            {interview.status !== "accepted" && (
+                <button
+                    type="button"
+                    className="applications-primary"
+                    disabled={sending}
+                    onClick={() => respond("accepted")}
+                >
+                    Xác nhận tham gia
+                </button>
+            )}
+            {interview.status !== "declined" && (
+                <button
+                    type="button"
+                    className="applications-outline"
+                    disabled={sending}
+                    onClick={() => respond("declined")}
+                >
+                    Từ chối lịch
+                </button>
+            )}
+            {error && <p role="alert">{error}</p>}
+        </div>
+    );
+}
+
+function ApplicationDetail({ application, onInterviewChange }) {
     const info = STATUS[application.status] || STATUS.pending;
     const interview = application.interview;
     const changes = (application.history || []).filter((item) => item.toStatus !== "pending");
@@ -148,9 +204,10 @@ function ApplicationDetail({ application }) {
                         </p>
                     )}
                     {interview.notes && <p className="application-interview__notes">{interview.notes}</p>}
-                    <span className="application-interview__status">
+                    <span className={`application-interview__status is-${interview.status}`}>
                         {INTERVIEW_STATUS[interview.status] || interview.status}
                     </span>
+                    <InterviewActions application={application} onInterviewChange={onInterviewChange} />
                 </div>
             )}
 
@@ -221,6 +278,15 @@ export default function ApplicationsPage({ userId }) {
         setLoading(true);
         setError(null);
         setRetry((value) => value + 1);
+    }
+
+    // Cập nhật lời mời trong danh sách sau khi ứng viên phản hồi.
+    function updateInterview(applicationId, interview) {
+        setApplications((previous) =>
+            previous.map((application) =>
+                application.id === applicationId ? { ...application, interview } : application
+            )
+        );
     }
 
     function toggle(id) {
@@ -357,7 +423,12 @@ export default function ApplicationsPage({ userId }) {
                                     <ChevronDown size={16} className={expanded ? "is-open" : ""} />
                                 </button>
 
-                                {expanded && <ApplicationDetail application={application} />}
+                                {expanded && (
+                                    <ApplicationDetail
+                                        application={application}
+                                        onInterviewChange={updateInterview}
+                                    />
+                                )}
                             </article>
                         );
                     })}

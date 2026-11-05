@@ -34,6 +34,24 @@ public class InterviewInvitation {
     @Column(nullable = false)
     private Status status;
 
+    // Nhà tuyển dụng gửi lời mời; ứng viên chưa phản hồi.
+    public InterviewInvitation(
+            Application application,
+            LocalDateTime scheduledAt,
+            String location,
+            String notes) {
+        this.application = application;
+        this.scheduledAt = scheduledAt;
+        this.location = location;
+        this.notes = notes;
+        this.status = Status.pending;
+    }
+
+    // Ứng viên xác nhận tham gia hoặc từ chối lịch phỏng vấn.
+    public void respond(Status response) {
+        this.status = response;
+    }
+
     // Giá trị khớp với ENUM trong database.
     public enum Status {
         pending,

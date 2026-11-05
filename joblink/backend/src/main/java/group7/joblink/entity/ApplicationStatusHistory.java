@@ -53,4 +53,20 @@ public class ApplicationStatusHistory {
         this.changedBy = changedBy;
         this.note = "Ứng viên nộp hồ sơ";
     }
+
+    // Nhà tuyển dụng đổi trạng thái đơn; note hiển thị cho ứng viên
+    // (lịch phỏng vấn, lý do từ chối...).
+    public ApplicationStatusHistory(
+            Application application,
+            Application.Status fromStatus,
+            Application.Status toStatus,
+            User changedBy,
+            String note) {
+
+        this.application = application;
+        this.fromStatus = fromStatus;
+        this.toStatus = toStatus;
+        this.changedBy = changedBy;
+        this.note = note;
+    }
 }

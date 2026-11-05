@@ -428,6 +428,8 @@ button.emp-funnel__step:hover { border-color: #0b5cff; }
   border-radius: 999px; padding: 2px 8px; white-space: nowrap;
 }
 .emp-menu--up { top: auto; bottom: 40px; }
+/* Bảng có menu thao tác: không cắt menu khi bảng ít dòng (menu cao hơn bảng). */
+.emp-card-table--menus { overflow: visible; }
 
 /* ---------- Trang Tìm kiếm ứng viên (bản v2.7, theo bản thiết kế) ---------- */
 .emp-search-hero {

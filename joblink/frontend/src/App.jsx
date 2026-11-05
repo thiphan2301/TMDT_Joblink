@@ -307,7 +307,8 @@ export default function App() {
 
                     {/* --- KHÔNG GIAN ỨNG VIÊN (trong khung gốc) --- */}
                     <Route path="/dashboard" element={<DashboardPage />} />
-                    <Route path="/applications" element={<ApplicationsPage />} />
+                    {/* userId: đánh dấu "Mới" cho cập nhật kể từ lần xem trước, theo từng tài khoản */}
+                    <Route path="/applications" element={<ApplicationsPage userId={currentUser?.id} />} />
                     <Route path="/saved" element={<SavedJobsPage />} />
                     <Route
                         path="/profile"
