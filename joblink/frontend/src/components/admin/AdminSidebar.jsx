@@ -5,6 +5,7 @@ import {
   IconGrid,
   IconUsers,
   IconBriefcase,
+  IconBuilding,
   IconChart,
   IconPackage,
   IconLogout,
@@ -20,6 +21,7 @@ const MAIN_MENU = [
   { to: "/admin", label: "Tổng quan hệ thống", icon: IconGrid, end: true },
   { to: "/admin/users", label: "Quản lý người dùng", icon: IconUsers },
   { to: "/admin/jobs", label: "Quản lý tin đăng", icon: IconBriefcase },
+  { to: "/admin/companies", label: "Quản lý công ty", icon: IconBuilding },
   { to: "/admin/reports", label: "Báo cáo & thống kê", icon: IconChart },
   { to: "/admin/packages", label: "Quản lý gói dịch vụ", icon: IconPackage },
 ];
@@ -46,53 +48,53 @@ export default function AdminSidebar() {
   const initials = displayName.trim().charAt(0).toUpperCase() || "A";
 
   return (
-    <aside className="admin-sidebar">
-      <div className="admin-sidebar__brand">
-        <img src={logo} alt="JobLink" />
-      </div>
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar__brand">
+          <img src={logo} alt="JobLink" />
+        </div>
 
-      <nav aria-label="Điều hướng quản trị">
-        <p className="admin-sidebar__heading">MENU CHÍNH</p>
-        <ul className="admin-sidebar__list">
-          {MAIN_MENU.map((item) => (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  `admin-sidebar__item${isActive ? " admin-sidebar__item--active" : ""}`
-                }
-              >
-                <item.icon size={20} />
-                <span>{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
+        <nav aria-label="Điều hướng quản trị">
+          <p className="admin-sidebar__heading">MENU CHÍNH</p>
+          <ul className="admin-sidebar__list">
+            {MAIN_MENU.map((item) => (
+                <li key={item.to}>
+                  <NavLink
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) =>
+                          `admin-sidebar__item${isActive ? " admin-sidebar__item--active" : ""}`
+                      }
+                  >
+                    <item.icon size={20} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                </li>
+            ))}
+          </ul>
+        </nav>
 
-      <div className="admin-sidebar__profile">
-        {me?.avatar ? (
-          <img className="admin-sidebar__avatar" src={me.avatar} alt="" />
-        ) : (
-          <span className="admin-sidebar__avatar admin-sidebar__avatar--text" aria-hidden="true">
+        <div className="admin-sidebar__profile">
+          {me?.avatar ? (
+              <img className="admin-sidebar__avatar" src={me.avatar} alt="" />
+          ) : (
+              <span className="admin-sidebar__avatar admin-sidebar__avatar--text" aria-hidden="true">
             {initials}
           </span>
-        )}
-        <div className="admin-sidebar__profile-info">
-          <strong>{displayName}</strong>
-          <span>{me?.email || "Chế độ demo (chưa đăng nhập)"}</span>
+          )}
+          <div className="admin-sidebar__profile-info">
+            <strong>{displayName}</strong>
+            <span>{me?.email || "Chế độ demo (chưa đăng nhập)"}</span>
+          </div>
+          <button
+              type="button"
+              className="admin-icon-btn"
+              onClick={handleLogout}
+              aria-label="Đăng xuất"
+              title="Đăng xuất"
+          >
+            <IconLogout size={19} />
+          </button>
         </div>
-        <button
-          type="button"
-          className="admin-icon-btn"
-          onClick={handleLogout}
-          aria-label="Đăng xuất"
-          title="Đăng xuất"
-        >
-          <IconLogout size={19} />
-        </button>
-      </div>
-    </aside>
+      </aside>
   );
 }
