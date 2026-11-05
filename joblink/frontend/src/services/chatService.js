@@ -30,6 +30,10 @@ export function openConversation(partnerId, jobId) {
   return request("/api/chat/conversations", jsonOptions("POST", { partnerId, jobId }));
 }
 
+export function openCompanyConversation(companyId) {
+  return request(`/api/chat/conversations/company/${companyId}`, jsonOptions("POST", {}));
+}
+
 export function getChatMessages(conversationId) {
   return request(`/api/chat/conversations/${conversationId}/messages`);
 }

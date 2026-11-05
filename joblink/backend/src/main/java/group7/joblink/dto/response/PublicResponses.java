@@ -61,9 +61,11 @@ public final class PublicResponses {
     }
 
     public record CompanyReviewRow(
+        Integer id,
         String reviewerName,
         String reviewerAvatar,
         Integer rating,
+        String sentiment,
         String content,
         LocalDateTime createdAt,
         String replyContent
@@ -89,6 +91,16 @@ public final class PublicResponses {
         List<Integer> ratingDistribution,
         List<CompanyJobCard> openJobs,
         List<CompanyReviewRow> reviews
+    ) {
+    }
+
+    public record CompanyReviewPage(
+        List<CompanyReviewRow> content,
+        int page,
+        int size,
+        long totalElements,
+        int totalPages,
+        String sentiment
     ) {
     }
 }
