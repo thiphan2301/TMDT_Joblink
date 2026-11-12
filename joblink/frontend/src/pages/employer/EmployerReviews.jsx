@@ -3,16 +3,18 @@ import { EmployerPageHeader } from "../../components/employer/EmployerLayout.jsx
 import { EmployerModal } from "../../components/employer/EmployerModal.jsx";
 import {
   IconStar, IconChat, IconCheck, IconSearch, IconChart, IconInfo,
-  IconClock, IconDots,
+  IconClock, IconDots, IconEdit, IconTrash,
 } from "../../components/employer/EmployerIcons.jsx";
 import { initialsOf, formatDate } from "../../components/employer/employerFormat.js";
 import useEmployerData from "../../hooks/useEmployerData.js";
-import { getReviews, replyToReview } from "../../services/employerService.js";
+import {
+  deleteReviewReply, getReviews, replyToReview, updateReviewReply,
+} from "../../services/employerService.js";
 
 // Trang "Đánh giá & Phản hồi" theo thiết kế Employer Portal: ứng
 // viên đánh giá công ty trên trang công khai (bảng
 // company_reviews); nhà tuyển dụng xem 4 thẻ số liệu, lọc/tìm/
-// sắp xếp danh sách, viết phản hồi (bảng review_replies), xem
+// sắp xếp danh sách, quản lý phản hồi (bảng review_replies), xem
 // phân tích sao và xuất báo cáo CSV. Mọi con số lấy từ API thật;
 // dòng "vị trí ứng viên" trong bản mẫu được thay bằng công ty
 // được đánh giá vì hồ sơ đánh giá không lưu vị trí của ứng viên.
@@ -84,16 +86,46 @@ export default function EmployerReviews() {
     setBusyId(review.id);
     setActionError("");
     try {
-      const updated = await replyToReview(review.id, content);
+      const updated = review.replyContent
+        ? await updateReviewReply(review.id, content)
+        : await replyToReview(review.id, content);
       setData(updated);
       setDrafts((d) => ({ ...d, [review.id]: "" }));
       setEditorId(null);
-      setNotice(`Đã gửi phản hồi cho đánh giá của ${review.candidateName}.`);
+      setNotice(review.replyContent
+        ? `Đã cập nhật phản hồi cho đánh giá của ${review.candidateName}.`
+        : `Đã gửi phản hồi cho đánh giá của ${review.candidateName}.`);
     } catch (err) {
-      setActionError(err.message || "Không gửi được phản hồi.");
+      setActionError(err.message || "Không lưu được phản hồi.");
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function removeReply(review) {
+    setMenuId(null);
+    if (!window.confirm("Bạn có chắc muốn xóa phản hồi này?")) return;
+    setBusyId(review.id);
+    setActionError("");
+    try {
+      setData(await deleteReviewReply(review.id));
+      setNotice("Đã xóa phản hồi.");
+    } catch (err) {
+      setActionError(err.message || "Không xóa được phản hồi.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function editReply(review) {
+    setMenuId(null);
+    setDrafts((d) => ({ ...d, [review.id]: review.replyContent || "" }));
+    setEditorId(review.id);
+  }
+
+  function cancelReplyEdit(review) {
+    setEditorId(null);
+    setDrafts((d) => ({ ...d, [review.id]: review.replyContent || "" }));
   }
 
   async function copyContent(review) {
@@ -265,7 +297,21 @@ export default function EmployerReviews() {
                             </button>
                             {menuId === r.id && (
                                 <div className="emp-menu">
-                                  {!r.replyContent && (
+                                  {r.replyContent ? (
+                                      <>
+                                        <button type="button" onClick={() => editReply(r)}>
+                                          <IconEdit size={16} /> Sửa phản hồi
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="is-danger"
+                                          disabled={busyId === r.id}
+                                          onClick={() => removeReply(r)}
+                                        >
+                                          <IconTrash size={16} /> Xóa phản hồi
+                                        </button>
+                                      </>
+                                  ) : (
                                       <button type="button" onClick={() => { setMenuId(null); setEditorId(r.id); }}>
                                         <IconChat size={16} /> Viết phản hồi
                                       </button>
@@ -280,7 +326,28 @@ export default function EmployerReviews() {
                         <div style={{ marginTop: 7 }}><Stars rating={r.rating} /></div>
                         <p style={{ margin: "9px 0 0", lineHeight: 1.65, fontStyle: "italic" }}>"{r.content}"</p>
 
-                        {r.replyContent ? (
+                        {editorId === r.id ? (
+                            <div style={{ marginTop: 13 }}>
+                              <textarea
+                                  className="emp-input" rows={3} autoFocus
+                                  placeholder="Cảm ơn bạn đã dành thời gian đánh giá..."
+                                  value={drafts[r.id] || ""}
+                                  onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: e.target.value }))}
+                              />
+                              <div style={{ display: "flex", gap: 9, marginTop: 9 }}>
+                                <button type="button" className="emp-btn emp-btn--primary"
+                                        disabled={busyId === r.id || !(drafts[r.id] || "").trim()}
+                                        onClick={() => sendReply(r)}>
+                                  {busyId === r.id ? "Đang lưu..." : r.replyContent ? "Lưu thay đổi" : "Gửi phản hồi"}
+                                </button>
+                                <button type="button" className="emp-btn"
+                                        disabled={busyId === r.id}
+                                        onClick={() => cancelReplyEdit(r)}>
+                                  Hủy
+                                </button>
+                              </div>
+                            </div>
+                        ) : r.replyContent ? (
                             <>
                               <div className="emp-review__divider" />
                               <div className="emp-review__reply">
@@ -291,27 +358,8 @@ export default function EmployerReviews() {
                                 <p>{r.replyContent}</p>
                               </div>
                             </>
-                        ) : editorId === r.id ? (
-                            <div style={{ marginTop: 13 }}>
-                      <textarea
-                          className="emp-input" rows={3} autoFocus
-                          placeholder="Cảm ơn bạn đã dành thời gian đánh giá..."
-                          value={drafts[r.id] || ""}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: e.target.value }))}
-                      />
-                              <div style={{ display: "flex", gap: 9, marginTop: 9 }}>
-                                <button type="button" className="emp-btn emp-btn--primary"
-                                        disabled={busyId === r.id || !(drafts[r.id] || "").trim()}
-                                        onClick={() => sendReply(r)}>
-                                  {busyId === r.id ? "Đang gửi..." : "Gửi phản hồi"}
-                                </button>
-                                <button type="button" className="emp-btn" onClick={() => setEditorId(null)}>
-                                  Hủy
-                                </button>
-                              </div>
-                            </div>
                         ) : (
-                            <button type="button" className="emp-reply-cta" onClick={() => setEditorId(r.id)}>
+                            <button type="button" className="emp-reply-cta" onClick={() => editReply(r)}>
                               + Viết phản hồi cho ứng viên này
                             </button>
                         )}

@@ -186,6 +186,14 @@ export function replyToReview(id, content) {
   return request(`/api/employer/reviews/${id}/reply`, jsonOptions("POST", { content }));
 }
 
+export function updateReviewReply(id, content) {
+  return request(`/api/employer/reviews/${id}/reply`, jsonOptions("PUT", { content }));
+}
+
+export function deleteReviewReply(id) {
+  return request(`/api/employer/reviews/${id}/reply`, { method: "DELETE" });
+}
+
 /* ---------------- Gói dịch vụ + ví ---------------- */
 
 export function getEmployerPlan() {

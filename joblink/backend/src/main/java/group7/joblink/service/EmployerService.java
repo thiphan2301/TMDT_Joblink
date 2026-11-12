@@ -649,6 +649,32 @@ public class EmployerService {
         return getReviews(employerId);
     }
 
+    @Transactional
+    public ReviewsResponse updateReviewReply(int employerId, int reviewId, String content) {
+        if (content == null || content.isBlank()) {
+            throw badRequest("Vui lòng nhập nội dung phản hồi.");
+        }
+        if (reviewRepository.countOwnReview(reviewId, employerId) == 0) {
+            throw notFound("Không tìm thấy đánh giá thuộc công ty của bạn.");
+        }
+        if (reviewRepository.countOwnReply(reviewId, employerId) == 0) {
+            throw notFound("Không tìm thấy phản hồi để cập nhật.");
+        }
+        reviewRepository.updateReply(reviewId, employerId, content.trim());
+        return getReviews(employerId);
+    }
+
+    @Transactional
+    public ReviewsResponse deleteReviewReply(int employerId, int reviewId) {
+        if (reviewRepository.countOwnReview(reviewId, employerId) == 0) {
+            throw notFound("Không tìm thấy đánh giá thuộc công ty của bạn.");
+        }
+        if (reviewRepository.deleteReply(reviewId, employerId) == 0) {
+            throw notFound("Không tìm thấy phản hồi để xóa.");
+        }
+        return getReviews(employerId);
+    }
+
     /* ---------------- Gói dịch vụ + ví Token ---------------- */
 
     @Transactional(readOnly = true)

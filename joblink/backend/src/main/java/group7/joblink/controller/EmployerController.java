@@ -245,6 +245,22 @@ public class EmployerController {
                 employerId, id, body == null ? null : body.content());
     }
 
+    @PutMapping("/reviews/{id}/reply")
+    public ReviewsResponse updateReviewReply(
+            @PathVariable int id, @RequestBody ReplyRequest body,
+            HttpServletRequest request) {
+        int employerId = employerAccess.requireEmployerId(request);
+        return employerService.updateReviewReply(
+                employerId, id, body == null ? null : body.content());
+    }
+
+    @DeleteMapping("/reviews/{id}/reply")
+    public ReviewsResponse deleteReviewReply(
+            @PathVariable int id, HttpServletRequest request) {
+        int employerId = employerAccess.requireEmployerId(request);
+        return employerService.deleteReviewReply(employerId, id);
+    }
+
     /* ---------------- Gói dịch vụ + ví ---------------- */
 
     @GetMapping("/plan")
