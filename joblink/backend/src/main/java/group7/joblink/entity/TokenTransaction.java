@@ -74,6 +74,22 @@ public class TokenTransaction {
         return transaction;
     }
 
+    public static TokenTransaction forPurchase(
+            TokenWallet wallet,
+            Integer orderId,
+            int amount) {
+        TokenTransaction transaction = new TokenTransaction();
+        transaction.wallet = wallet;
+        transaction.type = Type.purchase;
+        transaction.amount = amount;
+        transaction.balanceAfter = 0;
+        transaction.idempotencyKey = "order:" + orderId;
+        transaction.orderId = orderId;
+        transaction.refType = "order";
+        transaction.refId = orderId;
+        return transaction;
+    }
+
     public enum Type {
         welcome,
         purchase,

@@ -7,7 +7,6 @@ import group7.joblink.entity.TokenPackage;
 import group7.joblink.entity.TokenWallet;
 import group7.joblink.entity.User;
 import group7.joblink.repository.CandidateWalletRepository;
-import group7.joblink.repository.EmployerTokenRepository;
 import group7.joblink.repository.TokenPackageRepository;
 import group7.joblink.repository.TokenWalletRepository;
 import group7.joblink.repository.UserRepository;
@@ -16,33 +15,30 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 
 // Ví Token phía ứng viên: số dư, tổng đã nhận/đã chi, lịch sử giao
-// dịch và các gói Token đang bán — tất cả đọc từ database. Mua gói
-// và thanh toán trực tuyến thuộc chức năng riêng nên service này
-// chỉ đọc, không tạo giao dịch.
+// dịch và các gói Token đang bán — tất cả đọc từ database. Thanh toán
+// và ghi nhận giao dịch được xử lý riêng bởi CandidateTokenPaymentService.
 @Service
 public class CandidateWalletService {
 
     private final UserRepository userRepository;
     private final TokenWalletRepository walletRepository;
     private final CandidateWalletRepository walletStatsRepository;
-    private final EmployerTokenRepository tokenRepository;
     private final TokenPackageRepository tokenPackageRepository;
 
     public CandidateWalletService(UserRepository userRepository,
                                   TokenWalletRepository walletRepository,
                                   CandidateWalletRepository walletStatsRepository,
-                                  EmployerTokenRepository tokenRepository,
                                   TokenPackageRepository tokenPackageRepository) {
         this.userRepository = userRepository;
         this.walletRepository = walletRepository;
         this.walletStatsRepository = walletStatsRepository;
-        this.tokenRepository = tokenRepository;
         this.tokenPackageRepository = tokenPackageRepository;
     }
 
@@ -61,11 +57,12 @@ public class CandidateWalletService {
             totalSpent = toLong(totals.get(0)[1]);
         }
 
-        List<TransactionRow> transactions = tokenRepository
-                .findRecentTransactions(userId, 100).stream()
+        List<TransactionRow> transactions = walletStatsRepository
+                .findRecentTransactionsWithPaymentDetails(userId, 100).stream()
                 .map(r -> new TransactionRow(
                         toInt(r[0]), str(r[1]), toInt(r[2]), toInt(r[3]),
-                        str(r[4]), toInt(r[5]), toDateTime(r[6])))
+                        str(r[4]), toInt(r[5]), toDateTime(r[6]),
+                        str(r[7]), toMoney(r[8]), str(r[9])))
                 .toList();
 
         List<TokenPackageCard> packages = tokenPackageRepository.findAll().stream()
@@ -96,6 +93,11 @@ public class CandidateWalletService {
 
     private static long toLong(Object value) {
         return value == null ? 0L : ((Number) value).longValue();
+    }
+
+    private static BigDecimal toMoney(Object value) {
+        return value == null ? null : value instanceof BigDecimal amount
+                ? amount : new BigDecimal(value.toString());
     }
 
     private static String str(Object value) {

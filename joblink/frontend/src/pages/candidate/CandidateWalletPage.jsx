@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { getCandidateWallet } from "../../services/candidateService.js";
+import {
+  createCandidateTokenPurchase,
+  getCandidateTokenPurchase,
+  getCandidateWallet,
+} from "../../services/candidateService.js";
 import {
   formatMoney, formatDate, TOKEN_TYPE_LABELS,
 } from "../../components/employer/employerFormat.js";
@@ -12,8 +16,7 @@ const PAGE_SIZE = 5;
 
 // Trang Ví Token của ứng viên theo thiết kế mới: số dư, các gói
 // Token đang bán và lịch sử giao dịch — mọi con số đọc từ database
-// qua /api/candidate/wallet. Mua gói và thanh toán trực tuyến là
-// chức năng riêng của nhóm nên nút mua chỉ mở hộp thông tin.
+// qua /api/candidate/wallet. Thanh toán được xác nhận từ backend qua VNPay IPN.
 export default function CandidateWalletPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -22,6 +25,54 @@ export default function CandidateWalletPage() {
   const [shown, setShown] = useState(PAGE_SIZE);
   const [infoOpen, setInfoOpen] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [purchaseBusyId, setPurchaseBusyId] = useState(null);
+  const [purchaseError, setPurchaseError] = useState("");
+  const [purchase, setPurchase] = useState(null);
+  const [retryPaymentCheck, setRetryPaymentCheck] = useState(0);
+  const [completedPaymentCheck, setCompletedPaymentCheck] = useState(-1);
+  const purchaseOrderCode = new URLSearchParams(window.location.search).get("vnp_TxnRef");
+  const paymentCheckComplete = completedPaymentCheck === retryPaymentCheck;
+
+  useEffect(() => {
+    if (!purchaseOrderCode) return undefined;
+
+    let cancelled = false;
+    let timer;
+    let attempts = 0;
+    const checkStatus = async () => {
+      try {
+        const status = await getCandidateTokenPurchase(purchaseOrderCode);
+        if (cancelled) return;
+        setPurchase(status);
+
+        if (status.orderStatus === "paid" || status.orderStatus === "fulfilled") {
+          const wallet = await getCandidateWallet();
+          if (cancelled) return;
+          setData(wallet);
+          window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
+          return;
+        }
+        if (status.orderStatus === "failed" || status.orderStatus === "cancelled") {
+          window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
+          return;
+        }
+        if (attempts < 15) {
+          attempts += 1;
+          timer = window.setTimeout(checkStatus, 2000);
+        } else {
+          setCompletedPaymentCheck(retryPaymentCheck);
+        }
+      } catch (err) {
+        if (!cancelled) setPurchaseError(err.message || "Không kiểm tra được trạng thái thanh toán.");
+      }
+    };
+
+    checkStatus();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [purchaseOrderCode, retryPaymentCheck]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +96,8 @@ export default function CandidateWalletPage() {
       const label = TOKEN_TYPE_LABELS[t.type] || t.type;
       return `txn-${t.id}`.includes(kw)
         || label.toLowerCase().includes(kw)
-        || (t.refType || "").toLowerCase().includes(kw);
+        || (t.refType || "").toLowerCase().includes(kw)
+        || (t.orderCode || "").toLowerCase().includes(kw);
     });
   }, [data, keyword, typeFilter]);
 
@@ -66,6 +118,18 @@ export default function CandidateWalletPage() {
     return Math.round((1 - per / maxPerToken) * 100);
   }
 
+  async function buyPackage(pkg) {
+    setPurchaseBusyId(pkg.id);
+    setPurchaseError("");
+    try {
+      const result = await createCandidateTokenPurchase(pkg.id);
+      window.location.assign(result.paymentUrl);
+    } catch (err) {
+      setPurchaseError(err.message || "Không thể tạo yêu cầu thanh toán.");
+      setPurchaseBusyId(null);
+    }
+  }
+
   function exportCsv() {
     const rows = (data?.transactions || []).map((t) => [
       `TXN-${t.id}`, t.createdAt || "",
@@ -73,8 +137,11 @@ export default function CandidateWalletPage() {
       t.amount > 0 ? `+${t.amount}` : `${t.amount}`,
       t.balanceAfter ?? "",
       t.refType ? `${t.refType} #${t.refId}` : "",
+      t.orderCode || "",
+      t.paymentAmount ?? "",
+      t.paymentGateway || "",
     ]);
-    const csv = ["Mã giao dịch,Thời gian,Nội dung,Số Token,Số dư sau,Tham chiếu",
+    const csv = ["Mã giao dịch,Thời gian,Nội dung,Số Token,Số dư sau,Tham chiếu,Mã đơn,Tiền thanh toán,Cổng thanh toán",
       ...rows.map((r) => r.join(","))].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const a = document.createElement("a");
@@ -102,6 +169,45 @@ export default function CandidateWalletPage() {
           Phương thức thanh toán
         </button>
       </header>
+
+      {purchaseOrderCode && (
+        <section className={`candw-payment-notice${purchase?.orderStatus === "failed" || purchase?.orderStatus === "cancelled" ? " is-error" : ""}`}>
+          <div>
+            <strong>
+              {purchase?.orderStatus === "paid" || purchase?.orderStatus === "fulfilled"
+                ? "Thanh toán thành công"
+                : purchase?.orderStatus === "failed" || purchase?.orderStatus === "cancelled"
+                  ? "Thanh toán chưa thành công"
+                  : "Đang xác nhận thanh toán"}
+            </strong>
+            <p>
+              {purchaseError
+                || (purchase?.orderStatus === "paid" || purchase?.orderStatus === "fulfilled"
+                  ? `Đã cộng ${purchase.tokens} Token vào ví.`
+                  : purchase?.orderStatus === "failed" || purchase?.orderStatus === "cancelled"
+                    ? "Đơn chưa được thanh toán; số dư Token không thay đổi."
+                    : paymentCheckComplete
+                      ? "Chưa nhận được xác nhận từ VNPay. Đơn vẫn đang chờ xử lý; bạn có thể kiểm tra lại sau."
+                      : "VNPay đang gửi kết quả xác nhận. Ví sẽ cập nhật tự động sau khi hệ thống nhận được thông báo.")}
+            </p>
+          </div>
+          {purchase?.orderStatus === "pending" && (
+            <button
+              type="button"
+              className="candw-btn"
+              onClick={() => {
+                setPurchaseError("");
+                setRetryPaymentCheck((count) => count + 1);
+              }}
+            >
+              Kiểm tra lại
+            </button>
+          )}
+        </section>
+      )}
+      {purchaseError && !purchaseOrderCode && (
+        <p className="candw-payment-error" role="alert">{purchaseError}</p>
+      )}
 
       <section className="candw-balance">
         <span className="candw-balance__label">
@@ -154,9 +260,10 @@ export default function CandidateWalletPage() {
               <button
                 type="button"
                 className={`candw-btn${i === popularIndex ? " candw-btn--primary" : ""}`}
-                onClick={() => setInfoOpen(true)}
+                disabled={purchaseBusyId !== null}
+                onClick={() => buyPackage(pkg)}
               >
-                Chọn mua ngay
+                {purchaseBusyId === pkg.id ? "Đang chuyển đến VNPay..." : "Chọn mua ngay"}
               </button>
             </article>
           );
@@ -213,7 +320,11 @@ export default function CandidateWalletPage() {
                 <td>{formatDate(t.createdAt)}{t.createdAt ? ` - ${String(t.createdAt).slice(11, 16)}` : ""}</td>
                 <td>
                   <strong>{TOKEN_TYPE_LABELS[t.type] || t.type}</strong>
-                  <span>{t.refType ? `Tham chiếu: ${t.refType} #${t.refId}` : "Giao dịch trong ví"}</span>
+                  <span>
+                    {t.orderCode
+                      ? `Đơn ${t.orderCode} · ${formatMoney(t.paymentAmount)} qua ${t.paymentGateway}`
+                      : t.refType ? `Tham chiếu: ${t.refType} #${t.refId}` : "Giao dịch trong ví"}
+                  </span>
                 </td>
                 <td className={t.amount >= 0 ? "candw-amount--in" : "candw-amount--out"}>
                   {t.amount >= 0 ? `+${t.amount}` : t.amount} Tokens
@@ -271,11 +382,10 @@ export default function CandidateWalletPage() {
       {infoOpen && (
         <EmployerModal title="Thanh toán trực tuyến" onClose={() => setInfoOpen(false)}>
           <p style={{ lineHeight: 1.65, color: "#52657c" }}>
-            Chức năng mua Token và thanh toán trực tuyến đang được hoàn
-            thiện ở phân hệ thanh toán của nhóm. Hiện tại số dư Token của
-            bạn được cấp qua các chương trình của hệ thống và quản trị
-            viên. Số dư và lịch sử trên trang này luôn là số thật từ ví
-            của bạn.
+            Bạn sẽ được chuyển sang cổng thanh toán VNPay để thanh toán
+            gói Token. Token chỉ được cộng sau khi máy chủ xác minh thông
+            báo thanh toán hợp lệ từ VNPay; quay lại trang này không tự
+            xác nhận giao dịch.
           </p>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
             <button type="button" className="candw-btn candw-btn--primary" onClick={() => setInfoOpen(false)}>
@@ -292,6 +402,13 @@ export default function CandidateWalletPage() {
             <div><span>Số Token</span><strong>{detail.amount >= 0 ? `+${detail.amount}` : detail.amount}</strong></div>
             <div><span>Số dư sau giao dịch</span><strong>{detail.balanceAfter} Token</strong></div>
             <div><span>Thời gian</span><strong>{formatDate(detail.createdAt)}</strong></div>
+            {detail.orderCode && (
+              <>
+                <div><span>Mã đơn hàng</span><strong>{detail.orderCode}</strong></div>
+                <div><span>Tiền đã thanh toán</span><strong>{formatMoney(detail.paymentAmount)}</strong></div>
+                <div><span>Cổng thanh toán</span><strong>{detail.paymentGateway || "—"}</strong></div>
+              </>
+            )}
             <div>
               <span>Tham chiếu</span>
               <strong>{detail.refType ? `${detail.refType} #${detail.refId}` : "—"}</strong>

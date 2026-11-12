@@ -19,7 +19,10 @@ public final class CandidateResponses {
         Integer balanceAfter,
         String refType,
         Integer refId,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String orderCode,
+        BigDecimal paymentAmount,
+        String paymentGateway
     ) {
     }
 
@@ -37,6 +40,24 @@ public final class CandidateResponses {
         long totalSpent,
         List<TransactionRow> transactions,
         List<TokenPackageCard> tokenPackages
+    ) {
+    }
+
+    public record TokenPurchaseCreated(
+        String orderCode,
+        String paymentUrl,
+        BigDecimal amount,
+        int tokens
+    ) {
+    }
+
+    public record TokenPurchaseStatus(
+        String orderCode,
+        String orderStatus,
+        String paymentStatus,
+        BigDecimal amount,
+        int tokens,
+        LocalDateTime createdAt
     ) {
     }
 

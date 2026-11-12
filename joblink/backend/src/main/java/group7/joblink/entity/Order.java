@@ -9,7 +9,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 // Đơn hàng mua gói đăng ký hoặc gói Token (bảng orders).
-// Khu vực admin hiện chỉ đọc để tính doanh thu — chưa có luồng tạo đơn ở đây.
 @Entity
 @Table(name = "orders")
 @Getter
@@ -80,5 +79,36 @@ public class Order {
         cancelled,
         failed,
         refunded
+    }
+
+    public Order(String orderCode, Integer userId, Integer tokenPackageId,
+                 BigDecimal amount, String productSnapshot) {
+        this.orderCode = orderCode;
+        this.userId = userId;
+        this.orderType = OrderType.token;
+        this.tokenPackageId = tokenPackageId;
+        this.subtotal = amount;
+        this.discountAmount = BigDecimal.ZERO;
+        this.totalAmount = amount;
+        this.productSnapshot = productSnapshot;
+        this.status = Status.pending;
+    }
+
+    public void markPaid() {
+        if (status == Status.pending) {
+            status = Status.paid;
+        }
+    }
+
+    public void markFailed() {
+        if (status == Status.pending) {
+            status = Status.failed;
+        }
+    }
+
+    public void markCancelled() {
+        if (status == Status.pending) {
+            status = Status.cancelled;
+        }
     }
 }
