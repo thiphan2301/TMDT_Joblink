@@ -14,6 +14,10 @@ import java.util.List;
 public interface EmployerApplicationRepository
         extends JpaRepository<Application, Integer> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Application a WHERE a.id = :id")
+    java.util.Optional<Application> findForUpdate(@Param("id") Integer id);
+
     // Đơn của một tin, mới nhất trước.
     List<Application> findByJobIdOrderByAppliedAtDesc(Integer jobId);
 

@@ -113,7 +113,7 @@ public class CandidateApplicationService {
             );
         }
 
-        Application application = applicationRepository.findById(applicationId)
+        Application application = applicationRepository.findForUpdate(applicationId)
                 .filter(value -> value.getCandidate().getUserId().equals(userId))
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,

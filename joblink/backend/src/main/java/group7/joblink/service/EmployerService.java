@@ -345,7 +345,10 @@ public class EmployerService {
     @Transactional
     public EmployerApplicationRow updateApplicationStatus(
             int employerId, int applicationId, String status) {
+        applicationRepository.findForUpdate(applicationId).orElseThrow(() -> notFound("Không tìm thấy đơn ứng tuyển."));
         Application app = requireOwnApplication(employerId, applicationId);
+        if (app.getStatus() == Application.Status.withdrawn || "withdrawn".equals(status))
+            throw conflict("Hồ sơ đã rút không thể tiếp tục xử lý; chỉ ứng viên được rút hồ sơ.");
         Application.Status next;
         try {
             next = Application.Status.valueOf(status == null ? "" : status);

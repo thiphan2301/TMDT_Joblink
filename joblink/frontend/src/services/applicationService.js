@@ -80,3 +80,20 @@ export async function respondToInterview(applicationId, response) {
 
     return data;
 }
+
+export async function withdrawApplication(id, reason) {
+    const res = await fetch(`/api/applications/${encodeURIComponent(id)}/withdraw`, {
+        method: "PATCH", credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ reason }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Không thể rút hồ sơ. Vui lòng thử lại.");
+    return data;
+}
+
+export async function getWithdrawalNotifications() {
+    const res = await fetch("/api/applications/withdrawal-notifications", { credentials: "same-origin" });
+    if (!res.ok) throw new Error("Không tải được thông báo rút hồ sơ.");
+    return res.json();
+}

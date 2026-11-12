@@ -81,7 +81,10 @@ public class EmployerInterviewService {
     // Mời phỏng vấn; đơn đã được mời thì coi như gửi lại lịch mới.
     @Transactional
     public InterviewResponse invite(int employerId, int applicationId, InviteRequest body) {
+        applicationRepository.findForUpdate(applicationId).orElseThrow(() -> error(HttpStatus.NOT_FOUND, "Không tìm thấy đơn ứng tuyển."));
         Application application = requireOwnApplication(employerId, applicationId);
+        if (application.getStatus() == Application.Status.withdrawn)
+            throw error(HttpStatus.CONFLICT, "Ứng viên đã rút hồ sơ, không thể tiếp tục xử lý.");
 
         if (application.getStatus() == Application.Status.hired) {
             throw error(HttpStatus.CONFLICT, "Ứng viên đã trúng tuyển, không cần mời phỏng vấn.");
@@ -131,7 +134,10 @@ public class EmployerInterviewService {
 
     @Transactional
     public void reject(int employerId, int applicationId, RejectRequest body) {
+        applicationRepository.findForUpdate(applicationId).orElseThrow(() -> error(HttpStatus.NOT_FOUND, "Không tìm thấy đơn ứng tuyển."));
         Application application = requireOwnApplication(employerId, applicationId);
+        if (application.getStatus() == Application.Status.withdrawn)
+            throw error(HttpStatus.CONFLICT, "Ứng viên đã rút hồ sơ, không thể tiếp tục xử lý.");
         Application.Status from = application.getStatus();
 
         if (from == Application.Status.rejected) {

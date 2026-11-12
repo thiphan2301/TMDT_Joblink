@@ -494,3 +494,7 @@
     white-space: normal;
   }
 }
+
+.application-withdraw { margin: 20px 0; padding: 16px; border: 1px solid #e2e8f0; border-radius: 10px; }
+.application-withdraw textarea { display: block; width: 100%; box-sizing: border-box; padding: 10px; margin: 8px 0 12px; font: inherit; }
+.application-withdraw button { margin-right: 8px; margin-top: 8px; }

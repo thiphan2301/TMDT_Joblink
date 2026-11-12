@@ -15,6 +15,10 @@ import java.util.Optional;
 public interface ApplicationRepository
         extends JpaRepository<Application, Integer> {
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Application a WHERE a.id = :id")
+    Optional<Application> findForUpdate(@Param("id") Integer id);
+
     // Đơn ứng tuyển của một ứng viên, đơn mới cập nhật lên đầu;
     // tải kèm tin tuyển dụng, công ty và CV để không phát sinh thêm truy vấn.
     @Query("""
