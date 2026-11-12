@@ -99,6 +99,8 @@ public class ApplicationService {
         );
 
         if (existing.isPresent()) {
+            if (existing.get().getStatus() == Application.Status.withdrawn)
+                throw error(HttpStatus.CONFLICT, "Bạn đã rút hồ sơ công việc này. Hiện chưa hỗ trợ ứng tuyển lại.");
             return new ApplyResponse(
                     true,
                     existing.get().getId(),

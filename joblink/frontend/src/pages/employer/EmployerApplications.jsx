@@ -1,3 +1,4 @@
+import { getWithdrawalNotifications } from "../../services/applicationService";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { EmployerPageHeader } from "../../components/employer/EmployerLayout.jsx";
@@ -65,6 +66,7 @@ function waitingDays(iso) {
 
 export default function EmployerApplications() {
   const navigate = useNavigate();
+  const { data: withdrawalNotices, error: withdrawalError, reload: reloadWithdrawals } = useEmployerData(getWithdrawalNotifications, []);
   const { data: jobs } = useEmployerData(getEmployerJobs, []);
   const { data: summary, reload: reloadSummary } = useEmployerData(getApplicationsSummary, []);
   const { data: invitedApps, reload: reloadInvited } = useEmployerData(
@@ -214,6 +216,16 @@ export default function EmployerApplications() {
               </div>
             }
         />
+        <section className="emp-card" aria-label="Thông báo rút hồ sơ">
+          <h2>Thông báo rút hồ sơ</h2>
+          <button className="emp-btn" onClick={reloadWithdrawals}>Làm mới thông báo</button>
+          {withdrawalError && <p role="alert">Không tải được thông báo. Vui lòng thử lại.</p>}
+          {withdrawalNotices?.length === 0 && <p>Chưa có thông báo rút hồ sơ.</p>}
+          {withdrawalNotices?.map((item) => <details key={item.id}>
+            <summary>{item.candidateName} đã rút hồ sơ: {item.jobTitle} — {formatDateTime(item.changedAt)}</summary>
+            <p>{item.note}</p>
+          </details>)}
+        </section>
         {actionError && <p className="emp-error">{actionError}</p>}
         {notice && <p className="emp-success">{notice}</p>}
 
@@ -353,7 +365,7 @@ export default function EmployerApplications() {
               {STATUSES.map((s) => (
                   <button key={s} type="button" className={status === s ? "is-active" : ""}
                           onClick={() => pickStatus(s)}>
-                    {APPLICATION_STATUS_LABELS[s]}{summary ? ` (${summary[s]})` : ""}
+                    {APPLICATION_STATUS_LABELS[s]}{summary?.[s] != null ? ` (${summary[s]})` : ""}
                   </button>
               ))}
             </div>
@@ -443,7 +455,7 @@ export default function EmployerApplications() {
                             </button>
                             <div className="emp-menu-wrap">
                               <button type="button" className="emp-icon-btn" aria-label="Thêm thao tác"
-                                      onClick={() => setMenuId(menuId === app.id ? null : app.id)} disabled={busy}>
+                                      onClick={() => setMenuId(menuId === app.id ? null : app.id)} disabled={busy || app.status === "withdrawn"}>
                                 <IconDots size={18} />
                               </button>
                               {menuId === app.id && (
@@ -454,7 +466,7 @@ export default function EmployerApplications() {
                                           Đổi lịch phỏng vấn
                                         </button>
                                     )}
-                                    {STATUSES.filter((s) => s !== app.status).map((s) => (
+                                    {STATUSES.filter((s) => s !== app.status && s !== "withdrawn").map((s) => (
                                         <button key={s} type="button"
                                                 className={s === "rejected" ? "is-danger" : ""}
                                                 onClick={() => { setMenuId(null); chooseStatus(app, s); }}>
@@ -657,13 +669,13 @@ function ApplicationDetailModal({ applicationId, onClose, onChat, onInvite, onRe
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
                 <button type="button" className="emp-btn" onClick={onClose}>Đóng</button>
-                {detail.status !== "hired" && detail.status !== "rejected" && (
+                {detail.status !== "withdrawn" && detail.status !== "hired" && detail.status !== "rejected" && (
                     <button type="button" className="emp-btn"
                             onClick={() => onReject({ id: detail.id, candidateName: detail.candidateName, status: detail.status })}>
                       Từ chối
                     </button>
                 )}
-                {detail.status !== "hired" && (
+                {detail.status !== "withdrawn" && detail.status !== "hired" && (
                     <button type="button" className="emp-btn"
                             onClick={() => onInvite({ id: detail.id, candidateName: detail.candidateName, status: detail.status })}>
                       <IconCalendar size={17} /> {detail.status === "invited" ? "Đổi lịch phỏng vấn" : "Mời phỏng vấn"}

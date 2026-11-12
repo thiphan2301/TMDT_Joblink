@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { CalendarClock, ChevronDown, FileText, MapPin } from "lucide-react";
 import { CompanyLogo, formatSalary } from "../../components/JobCard";
-import { getMyApplications, respondToInterview } from "../../services/applicationService";
+import { getMyApplications, respondToInterview, withdrawApplication } from "../../services/applicationService";
 import "../../style/ApplicationsPage.css";
 
 // Trạng thái đơn trong database -> nhãn, màu và lời nhắn cho ứng viên
 const STATUS = {
+    withdrawn: { label: "Đã rút hồ sơ", tone: "red", message: "Bạn đã rút hồ sơ. Nhà tuyển dụng không thể tiếp tục xử lý hồ sơ này." },
     pending: {
         label: "Đang chờ",
         tone: "blue",
@@ -37,6 +38,7 @@ const STATUS = {
 
 const FILTERS = [
     { id: "all", label: "Tất cả", match: () => true },
+    { id: "withdrawn", label: "Đã rút", match: (status) => status === "withdrawn" },
     { id: "waiting", label: "Đang chờ", match: (status) => status === "pending" || status === "viewed" },
     { id: "invited", label: "Phỏng vấn", match: (status) => status === "invited" },
     { id: "rejected", label: "Từ chối", match: (status) => status === "rejected" },
@@ -51,6 +53,7 @@ const INTERVIEW_STATUS = {
 
 // Nội dung thông báo cập nhật mới theo trạng thái
 const UPDATE_TEXT = {
+    withdrawn: "hồ sơ đã rút",
     viewed: "hồ sơ đã được xem",
     invited: "lời mời phỏng vấn",
     rejected: "hồ sơ bị từ chối",
@@ -179,7 +182,42 @@ function InterviewActions({ application, onInterviewChange }) {
     );
 }
 
-function ApplicationDetail({ application, onInterviewChange }) {
+function WithdrawalActions({ application, onWithdrawn }) {
+    const [open, setOpen] = useState(false);
+    const [reason, setReason] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+    if (!["pending", "viewed", "invited"].includes(application.status)) return null;
+    async function submit(event) {
+        event.preventDefault();
+        if (busy) return;
+        setBusy(true); setError("");
+        try {
+            const result = await withdrawApplication(application.id, reason.trim());
+            onWithdrawn(application.id, result, reason.trim());
+        } catch (err) { setError(err.message); }
+        finally { setBusy(false); }
+    }
+    return <section className="application-withdraw">
+        {!open ? <button className="applications-outline" onClick={() => setOpen(true)}>Rút hồ sơ ứng tuyển</button> :
+        <form onSubmit={submit}>
+            <h3>Xác nhận rút hồ sơ</h3>
+            <p>{application.status === "pending"
+                ? "Nếu hồ sơ vẫn đang chờ khi xác nhận, bạn được hoàn số token thực tế đã chi cho hồ sơ."
+                : "Hồ sơ đã được xử lý nên không hoàn token khi rút."}</p>
+            <p>Lời mời phỏng vấn sẽ được từ chối. Hiện chưa hỗ trợ ứng tuyển lại công việc này.</p>
+            <label>Lý do rút hồ sơ (tối đa 500 ký tự)
+                <textarea required maxLength={500} value={reason} disabled={busy}
+                    onChange={(e) => setReason(e.target.value)} rows={3} />
+            </label>
+            <button className="applications-primary" disabled={busy || !reason.trim()}>{busy ? "Đang rút…" : "Xác nhận rút hồ sơ"}</button>
+            <button type="button" className="applications-outline" disabled={busy} onClick={() => setOpen(false)}>Giữ hồ sơ</button>
+            {error && <p role="alert">{error}</p>}
+        </form>}
+    </section>;
+}
+
+function ApplicationDetail({ application, onInterviewChange, onWithdrawn }) {
     const info = STATUS[application.status] || STATUS.pending;
     const interview = application.interview;
     const changes = (application.history || []).filter((item) => item.toStatus !== "pending");
@@ -217,6 +255,7 @@ function ApplicationDetail({ application, onInterviewChange }) {
                 </Link>
             )}
 
+            <WithdrawalActions application={application} onWithdrawn={onWithdrawn} />
             <h3 className="application-detail__title">Tiến trình hồ sơ</h3>
             <ol className="application-timeline">
                 <li>
@@ -243,6 +282,15 @@ function ApplicationDetail({ application, onInterviewChange }) {
 
 export default function ApplicationsPage({ userId }) {
     const [applications, setApplications] = useState([]);
+    const [withdrawNotice, setWithdrawNotice] = useState("");
+    function handleWithdrawn(id, result, reason) {
+        setWithdrawNotice(result.message);
+        setApplications((items) => items.map((app) => app.id === id ? {
+            ...app, status: "withdrawn", interview: null,
+            history: [...(app.history || []), { fromStatus: app.status, toStatus: "withdrawn",
+                changedAt: new Date().toISOString(), note: `Lý do: ${reason}. Hoàn ${result.refundedTokens} token.` }],
+        } : app));
+    }
     const [newIds, setNewIds] = useState([]);
     const [expandedIds, setExpandedIds] = useState([]);
     const [filter, setFilter] = useState("all");
@@ -305,6 +353,7 @@ export default function ApplicationsPage({ userId }) {
         return (
             <div className="applications-page">
                 <h1>Việc đã ứng tuyển</h1>
+            {withdrawNotice && <p className="applications-banner" role="status">{withdrawNotice}</p>}
                 <div className="applications-card applications-message">
                     <p role="alert">
                         {needLogin ? "Bạn cần đăng nhập để xem các công việc đã ứng tuyển." : error.message}
@@ -335,6 +384,7 @@ export default function ApplicationsPage({ userId }) {
     return (
         <div className="applications-page">
             <h1>Việc đã ứng tuyển</h1>
+            {withdrawNotice && <p className="applications-banner" role="status">{withdrawNotice}</p>}
             <p className="applications-muted">Theo dõi từng bước trên hành trình sự nghiệp của bạn.</p>
 
             {newUpdates.length > 0 && (
@@ -427,6 +477,7 @@ export default function ApplicationsPage({ userId }) {
                                     <ApplicationDetail
                                         application={application}
                                         onInterviewChange={updateInterview}
+                                        onWithdrawn={handleWithdrawn}
                                     />
                                 )}
                             </article>

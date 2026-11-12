@@ -64,6 +64,7 @@ public class Application {
         viewed,
         invited,
         rejected,
-        hired
+        hired,
+        withdrawn
     }
 }

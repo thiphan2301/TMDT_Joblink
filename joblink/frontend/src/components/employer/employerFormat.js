@@ -10,6 +10,7 @@ export const JOB_STATUS_LABELS = {
 };
 
 export const APPLICATION_STATUS_LABELS = {
+  withdrawn: "Đã rút hồ sơ",
   pending: "Chờ xử lý",
   viewed: "Đã xem",
   invited: "Mời phỏng vấn",
@@ -34,6 +35,7 @@ export const JOB_STATUS_BADGE = {
 };
 
 export const APPLICATION_STATUS_BADGE = {
+  withdrawn: "emp-badge--gray",
   pending: "emp-badge--blue",
   viewed: "emp-badge--amber",
   invited: "emp-badge--purple",
