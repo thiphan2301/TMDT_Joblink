@@ -29,7 +29,7 @@ public class AdminController {
         this.adminAccess = adminAccess;
     }
 
-    /* ---------- Tổng quan & báo cáo ---------- */
+    /*  Tổng quan & báo cáo  */
 
     // from/to (yyyy-MM-dd) không bắt buộc: admin chọn khoảng ngày xem tăng trưởng.
     @GetMapping("/overview")
@@ -51,7 +51,7 @@ public class AdminController {
         return adminService.getReport(period, from, to);
     }
 
-    /* ---------- Người dùng ---------- */
+    /*  Người dùng  */
 
     @GetMapping("/users")
     public List<UserRow> users(HttpServletRequest request) {
@@ -111,7 +111,7 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    /* ---------- Tin tuyển dụng ---------- */
+    /*  Tin tuyển dụng */
 
     @GetMapping("/jobs")
     public List<JobRow> jobs(HttpServletRequest request) {
@@ -131,6 +131,16 @@ public class AdminController {
     public List<CompanyRow> companies(HttpServletRequest request) {
         adminAccess.requireAdminId(request);
         return adminService.getCompanies();
+    }
+
+    // Duyệt hồ sơ công ty: body { "status": "verified" | "rejected" | "pending" }.
+    @PatchMapping("/companies/{id}/verification")
+    public ResponseEntity<Void> setCompanyVerification(
+            @PathVariable("id") int id,
+            @RequestBody AdminStatusRequest body, HttpServletRequest request) {
+        adminAccess.requireAdminId(request);
+        adminService.setCompanyVerification(id, body.status());
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/jobs/{id}")
@@ -165,7 +175,7 @@ public class AdminController {
         return adminService.getJobApplications(id);
     }
 
-    /* ---------- Gói dịch vụ ---------- */
+    /* Gói dịch vụ  */
 
     @GetMapping("/packages")
     public Packages packages(HttpServletRequest request) {
@@ -248,7 +258,7 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    /* ---------- Lỗi ---------- */
+    /* Lỗi */
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, String>> handleAdminError(
