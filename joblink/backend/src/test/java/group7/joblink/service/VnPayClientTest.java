@@ -38,6 +38,24 @@ class VnPayClientTest {
     }
 
     @Test
+    void taoUrlThanhToanNhaTuyenDungQuayVeTrangGoiDichVu() {
+        String employerReturnUrl =
+                "http://localhost:5173/employer/plan?paymentFor=employer";
+        VnPayClient client = new VnPayClient(
+                "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
+                "TESTCODE",
+                "test-secret",
+                "http://localhost:5173/vi-token",
+                employerReturnUrl);
+
+        Map<String, String> parameters = queryParameters(client.createEmployerPaymentUrl(
+                "employer-order-123", new BigDecimal("499000.00"), "127.0.0.1"));
+
+        assertThat(parameters.get("vnp_ReturnUrl")).isEqualTo(employerReturnUrl);
+        assertThat(client.hasValidSignature(parameters)).isTrue();
+    }
+
+    @Test
     void khongTaoUrlNeuChuaCauHinhSecret() {
         VnPayClient client = new VnPayClient(
                 "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",

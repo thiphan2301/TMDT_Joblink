@@ -211,3 +211,15 @@ export function getSubscriptionHistory() {
 export function getWallet() {
   return request("/api/employer/wallet");
 }
+
+export function createEmployerTokenPurchase(packageId) {
+  return request("/api/employer/purchases/tokens", jsonOptions("POST", { packageId }));
+}
+
+export function createEmployerSubscriptionPurchase(packageId) {
+  return request("/api/employer/purchases/subscriptions", jsonOptions("POST", { packageId }));
+}
+
+export function getEmployerPurchaseStatus(orderCode) {
+  return request(`/api/employer/purchases/${encodeURIComponent(orderCode)}`);
+}

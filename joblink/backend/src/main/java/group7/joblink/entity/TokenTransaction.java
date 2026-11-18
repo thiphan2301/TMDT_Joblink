@@ -90,6 +90,21 @@ public class TokenTransaction {
         return transaction;
     }
 
+    public static TokenTransaction forJobPost(
+            TokenWallet wallet,
+            Integer jobId,
+            int cost) {
+        TokenTransaction transaction = new TokenTransaction();
+        transaction.wallet = wallet;
+        transaction.type = Type.spend;
+        transaction.amount = -cost;
+        transaction.balanceAfter = 0;
+        transaction.idempotencyKey = "job:" + jobId;
+        transaction.refType = "job";
+        transaction.refId = jobId;
+        return transaction;
+    }
+
     public enum Type {
         welcome,
         purchase,

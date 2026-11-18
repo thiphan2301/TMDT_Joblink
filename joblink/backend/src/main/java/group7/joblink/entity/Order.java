@@ -94,6 +94,25 @@ public class Order {
         this.status = Status.pending;
     }
 
+    public static Order forSubscriptionPurchase(
+            String orderCode,
+            Integer userId,
+            Integer packageId,
+            BigDecimal amount,
+            String productSnapshot) {
+        Order order = new Order();
+        order.orderCode = orderCode;
+        order.userId = userId;
+        order.orderType = OrderType.subscription;
+        order.packageId = packageId;
+        order.subtotal = amount;
+        order.discountAmount = BigDecimal.ZERO;
+        order.totalAmount = amount;
+        order.productSnapshot = productSnapshot;
+        order.status = Status.pending;
+        return order;
+    }
+
     public void markPaid() {
         if (status == Status.pending) {
             status = Status.paid;

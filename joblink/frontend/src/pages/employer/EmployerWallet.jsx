@@ -1,20 +1,36 @@
+import { useState } from "react";
 import { EmployerPageHeader } from "../../components/employer/EmployerLayout.jsx";
 import { IconWallet } from "../../components/employer/EmployerIcons.jsx";
 import {
   TOKEN_TYPE_LABELS, formatMoney, formatDateTime,
 } from "../../components/employer/employerFormat.js";
 import useEmployerData from "../../hooks/useEmployerData.js";
-import { getWallet, getPackages } from "../../services/employerService.js";
+import {
+  createEmployerTokenPurchase, getWallet, getPackages,
+} from "../../services/employerService.js";
 
 // Trang "Ví Token": số dư Token hiện tại (bảng token_wallets), các gói
 // Token đang bán (bảng token_packages) và lịch sử biến động số dư
-// (bảng token_transactions). Mua Token trực tuyến chưa có cổng thanh
-// toán nên trang chỉ hiển thị thông tin — Token hiện được cộng khi
-// đăng ký gói dịch vụ hoặc do admin điều chỉnh.
+// (bảng token_transactions). Giao dịch mua chỉ được ghi nhận sau khi
+// backend nhận IPN hợp lệ từ VNPay.
 export default function EmployerWallet() {
   const { data: wallet, loading, error } = useEmployerData(getWallet, []);
   const { data: packagesData } = useEmployerData(getPackages, []);
   const tokenPackages = packagesData?.tokenPackages || [];
+  const [purchaseBusyId, setPurchaseBusyId] = useState(null);
+  const [purchaseError, setPurchaseError] = useState("");
+
+  async function purchaseTokens(tokenPackage) {
+    setPurchaseBusyId(tokenPackage.id);
+    setPurchaseError("");
+    try {
+      const purchase = await createEmployerTokenPurchase(tokenPackage.id);
+      window.location.assign(purchase.paymentUrl);
+    } catch (err) {
+      setPurchaseError(err.message || "Không thể tạo yêu cầu thanh toán.");
+      setPurchaseBusyId(null);
+    }
+  }
 
   return (
     <>
@@ -38,10 +54,12 @@ export default function EmployerWallet() {
               </div>
             </div>
             <p style={{ margin: "14px 0 0", color: "#cfe0ff", lineHeight: 1.6, fontSize: 13.5 }}>
-              Token được tặng kèm khi đăng ký gói dịch vụ trả phí, hoặc cộng bởi
-              quản trị viên. Dùng Token cho các tính năng trả phí khi hệ thống mở.
+              Token được tặng kèm khi đăng ký gói dịch vụ hoặc nạp từ ví. VNPay
+              xác nhận giao dịch trước khi hệ thống cộng Token.
             </p>
           </section>
+
+          {purchaseError && <p className="emp-error">{purchaseError}</p>}
 
           {tokenPackages.length > 0 && (
             <>
@@ -53,8 +71,16 @@ export default function EmployerWallet() {
                     <div>
                       <p className="emp-stat-card__label">{tp.name}</p>
                       <p className="emp-stat-card__value" style={{ fontSize: 20 }}>{formatMoney(tp.price)}</p>
-                      <p className="emp-stat-card__sub emp-stat-card__sub--muted">Nạp qua admin / cổng thanh toán sắp mở</p>
+                      <p className="emp-stat-card__sub emp-stat-card__sub--muted">{tp.tokens} Token</p>
                     </div>
+                    <button
+                      type="button"
+                      className="emp-btn emp-btn--primary"
+                      disabled={purchaseBusyId !== null}
+                      onClick={() => purchaseTokens(tp)}
+                    >
+                      {purchaseBusyId === tp.id ? "Đang chuyển đến VNPay..." : "Mua qua VNPay"}
+                    </button>
                   </article>
                 ))}
               </div>
@@ -64,7 +90,7 @@ export default function EmployerWallet() {
           <div className="emp-card-table">
             <table className="emp-table">
               <thead>
-                <tr><th>Thời gian</th><th>Loại giao dịch</th><th>Biến động</th><th>Số dư sau</th><th>Tham chiếu</th></tr>
+                <tr><th>Thời gian</th><th>Loại giao dịch</th><th>Biến động</th><th>Số dư sau</th><th>Tham chiếu / thanh toán</th></tr>
               </thead>
               <tbody>
                 {wallet.transactions.map((t) => (
@@ -75,7 +101,13 @@ export default function EmployerWallet() {
                       {t.amount >= 0 ? `+${t.amount}` : t.amount}
                     </td>
                     <td><strong>{t.balanceAfter}</strong></td>
-                    <td className="emp-table__muted">{t.refType ? `${t.refType}${t.refId ? ` #${t.refId}` : ""}` : "—"}</td>
+                    <td className="emp-table__muted">
+                      {t.orderCode
+                        ? `Đơn ${t.orderCode}${t.paymentGateway
+                          ? ` · ${formatMoney(t.paymentAmount)} qua ${t.paymentGateway}`
+                          : ""}`
+                        : t.refType ? `${t.refType}${t.refId ? ` #${t.refId}` : ""}` : "—"}
+                    </td>
                   </tr>
                 ))}
                 {wallet.transactions.length === 0 && (

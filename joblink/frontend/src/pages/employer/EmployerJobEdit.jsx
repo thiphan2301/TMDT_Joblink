@@ -26,6 +26,11 @@ const EMPTY_FORM = {
   tokenCost: 20, status: "open", description: "", requirements: "",
 };
 
+function tokensForDuration(days) {
+  const duration = Number(days);
+  return duration > 0 ? Math.ceil(duration / 7) * 20 : 0;
+}
+
 export default function EmployerJobEdit() {
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -59,7 +64,7 @@ export default function EmployerJobEdit() {
             workingSchedule: job.workingSchedule || "",
             deadline: job.deadline || "",
             displayDays: job.displayDays ?? 7,
-            tokenCost: job.tokenCost ?? 20,
+            tokenCost: job.tokenCost ?? tokensForDuration(job.displayDays ?? 7),
             status: ["draft", "open", "closed"].includes(job.status) ? job.status : "open",
             description: job.description || "",
             requirements: job.requirements || "",
@@ -89,6 +94,10 @@ export default function EmployerJobEdit() {
     setFormError("");
     if (!form.title.trim()) return setFormError("Vui lòng nhập tên vị trí.");
     if (!form.companyId) return setFormError("Vui lòng chọn công ty đăng tin.");
+    if (!Number.isInteger(Number(form.displayDays))
+        || Number(form.displayDays) < 1 || Number(form.displayDays) > 365) {
+      return setFormError("Thời hạn tin phải từ 1 đến 365 ngày.");
+    }
     const payload = {
       companyId: Number(form.companyId),
       title: form.title.trim(),
@@ -101,8 +110,7 @@ export default function EmployerJobEdit() {
       vacancies: Number(form.vacancies) || 1,
       workingSchedule: form.workingSchedule || null,
       deadline: form.deadline || null,
-      displayDays: Number(form.displayDays) || 7,
-      tokenCost: Number(form.tokenCost) || 0,
+      displayDays: Number(form.displayDays),
       status: form.status,
       description: form.description || null,
       requirements: form.requirements || null,
@@ -207,12 +215,29 @@ export default function EmployerJobEdit() {
             </label>
             <label className="emp-field">
               <FieldLabel>Số ngày hiển thị</FieldLabel>
-              <input className="emp-input" type="number" min="1" value={form.displayDays} onChange={(e) => set("displayDays", e.target.value)} />
+              <input
+                className="emp-input"
+                type="number"
+                min="1"
+                max="365"
+                value={form.displayDays}
+                disabled={isEdit}
+                onChange={(e) => setForm((current) => ({
+                  ...current,
+                  displayDays: e.target.value,
+                  tokenCost: tokensForDuration(e.target.value),
+                }))}
+              />
             </label>
-            <label className="emp-field">
-              <FieldLabel>Chi phí Token / tin</FieldLabel>
-              <input className="emp-input" type="number" min="0" value={form.tokenCost} onChange={(e) => set("tokenCost", e.target.value)} />
-            </label>
+            <div className="emp-field">
+              <FieldLabel>Token cần dùng</FieldLabel>
+              <output className="emp-input" aria-live="polite">
+                {isEdit ? form.tokenCost : tokensForDuration(form.displayDays)} Token
+              </output>
+              <span className="emp-muted" style={{ fontSize: 12 }}>
+                20 Token / 7 ngày; ngày lẻ làm tròn lên. Lưu nháp chưa trừ Token.
+              </span>
+            </div>
           </div>
 
           <label className="emp-field" style={{ marginTop: 14 }}>

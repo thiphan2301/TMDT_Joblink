@@ -20,6 +20,7 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
         SELECT DISTINCT j
         FROM Job j
         WHERE j.status = :status
+          AND j.listingExpiresAt > CURRENT_TIMESTAMP
           AND (j.deadline IS NULL OR j.deadline >= :today)
         ORDER BY j.prioritized DESC, j.createdAt DESC, j.id DESC
         """)

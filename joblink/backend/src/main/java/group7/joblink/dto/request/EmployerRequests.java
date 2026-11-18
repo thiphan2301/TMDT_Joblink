@@ -2,6 +2,8 @@ package group7.joblink.dto.request;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 // Dữ liệu gửi lên cho khu vực nhà tuyển dụng.
 public final class EmployerRequests {
@@ -26,8 +28,12 @@ public final class EmployerRequests {
             String workingSchedule,
             LocalDate deadline,
             String status,
-            Integer displayDays,
-            Integer tokenCost
+            Integer displayDays
+    ) {
+    }
+
+    public record PurchaseRequest(
+            @NotNull @Positive Integer packageId
     ) {
     }
 

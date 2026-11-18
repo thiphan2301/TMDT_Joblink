@@ -2,8 +2,10 @@ package group7.joblink.service;
 
 import group7.joblink.entity.Order;
 import group7.joblink.entity.Payment;
+import group7.joblink.entity.User;
 import group7.joblink.entity.TokenTransaction;
 import group7.joblink.entity.TokenWallet;
+import group7.joblink.repository.AdminSubscriptionRepository;
 import group7.joblink.repository.OrderRepository;
 import group7.joblink.repository.PaymentRepository;
 import group7.joblink.repository.TokenPackageRepository;
@@ -30,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-class CandidateTokenPaymentServiceTest {
+class VnPayIpnServiceTest {
 
     private static final String SECRET = "test-secret";
     private static final String ORDER_CODE = "token-order-123";
@@ -40,29 +42,38 @@ class CandidateTokenPaymentServiceTest {
     private PaymentRepository paymentRepository;
     private TokenWalletRepository tokenWalletRepository;
     private TokenTransactionRepository tokenTransactionRepository;
-    private CandidateTokenPaymentService service;
+    private UserRepository userRepository;
+    private AdminSubscriptionRepository subscriptionRepository;
+    private EmployerService employerService;
+    private VnPayIpnService service;
     private Order order;
     private Payment payment;
     private TokenWallet wallet;
 
     @BeforeEach
     void setUp() {
-        UserRepository userRepository = mock(UserRepository.class);
+        userRepository = mock(UserRepository.class);
+        User buyer = mock(User.class);
+        when(buyer.getRole()).thenReturn(User.Role.candidate);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(buyer));
         TokenPackageRepository tokenPackageRepository = mock(TokenPackageRepository.class);
         orderRepository = mock(OrderRepository.class);
         paymentRepository = mock(PaymentRepository.class);
         tokenWalletRepository = mock(TokenWalletRepository.class);
         tokenTransactionRepository = mock(TokenTransactionRepository.class);
+        subscriptionRepository = mock(AdminSubscriptionRepository.class);
+        employerService = mock(EmployerService.class);
         VnPayClient vnPayClient = new VnPayClient(
                 "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
                 "TESTCODE", SECRET, "http://localhost:5173/vi-token");
-        service = new CandidateTokenPaymentService(
-                userRepository,
-                tokenPackageRepository,
+        service = new VnPayIpnService(
                 orderRepository,
                 paymentRepository,
                 tokenWalletRepository,
                 tokenTransactionRepository,
+                subscriptionRepository,
+                userRepository,
+                employerService,
                 vnPayClient,
                 JsonMapper.builder().build());
 
@@ -119,6 +130,45 @@ class CandidateTokenPaymentServiceTest {
         assertThat(service.handleIpn(ipn))
                 .containsEntry("RspCode", "04");
         verifyNoInteractions(tokenTransactionRepository, tokenWalletRepository);
+    }
+
+    @Test
+    void ipnGoiDichVuTaoSubscriptionVaCongTokenKhuyenMai() {
+        User employer = mock(User.class);
+        when(employer.getRole()).thenReturn(User.Role.employer);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(employer));
+
+        order = Order.forSubscriptionPurchase(
+                ORDER_CODE, USER_ID, 4, new BigDecimal("25000.00"),
+                "{\"type\":\"subscription\",\"packageId\":4,\"name\":\"Pro\","
+                        + "\"durationDays\":30,\"includedTokens\":25,\"price\":\"25000.00\"}");
+        ReflectionTestUtils.setField(order, "id", 41);
+        payment = new Payment(order, new BigDecimal("25000.00"), "VNPAY");
+        when(orderRepository.findByOrderCodeForUpdate(ORDER_CODE))
+                .thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderIdForUpdate(41))
+                .thenReturn(Optional.of(payment));
+        when(subscriptionRepository.findByEmployerIdAndStatus(
+                USER_ID, group7.joblink.entity.Subscription.Status.active))
+                .thenReturn(java.util.List.of());
+
+        assertThat(service.handleIpn(signedIpn("00", "00", false)))
+                .containsEntry("RspCode", "00");
+        assertThat(order.getStatus()).isEqualTo(Order.Status.paid);
+        assertThat(payment.getStatus()).isEqualTo(Payment.Status.success);
+
+        var subscriptionCaptor =
+                org.mockito.ArgumentCaptor.forClass(group7.joblink.entity.Subscription.class);
+        verify(subscriptionRepository).save(subscriptionCaptor.capture());
+        verify(employerService).refreshJobFeatures(USER_ID);
+        assertThat(subscriptionCaptor.getValue().getPackageId()).isEqualTo(4);
+        assertThat(subscriptionCaptor.getValue().getEndAt())
+                .isEqualTo(subscriptionCaptor.getValue().getStartAt().plusDays(30));
+
+        var transactionCaptor = org.mockito.ArgumentCaptor.forClass(TokenTransaction.class);
+        verify(tokenTransactionRepository).save(transactionCaptor.capture());
+        assertThat(transactionCaptor.getValue().getAmount()).isEqualTo(25);
+        assertThat(transactionCaptor.getValue().getOrderId()).isEqualTo(41);
     }
 
     private static Map<String, String> signedIpn(

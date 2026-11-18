@@ -1,6 +1,6 @@
 package group7.joblink.controller;
 
-import group7.joblink.service.CandidateTokenPaymentService;
+import group7.joblink.service.VnPayIpnService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,9 +13,9 @@ import java.util.Map;
 @RequestMapping("/api/payments/vnpay/ipn")
 public class VnPayIpnController {
 
-    private final CandidateTokenPaymentService paymentService;
+    private final VnPayIpnService paymentService;
 
-    public VnPayIpnController(CandidateTokenPaymentService paymentService) {
+    public VnPayIpnController(VnPayIpnService paymentService) {
         this.paymentService = paymentService;
     }
 

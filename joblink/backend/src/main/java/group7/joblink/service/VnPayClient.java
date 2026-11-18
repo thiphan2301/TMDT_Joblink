@@ -1,5 +1,6 @@
 package group7.joblink.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -30,23 +31,51 @@ public class VnPayClient {
     private final String tmnCode;
     private final String hashSecret;
     private final String returnUrl;
+    private final String employerReturnUrl;
 
+    @Autowired
     public VnPayClient(
             @Value("${app.vnpay.payment-url:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}") String paymentUrl,
             @Value("${app.vnpay.tmn-code:}") String tmnCode,
             @Value("${app.vnpay.hash-secret:}") String hashSecret,
-            @Value("${app.vnpay.return-url:http://localhost:5173/vi-token}") String returnUrl) {
+            @Value("${app.vnpay.return-url:http://localhost:5173/vi-token}") String returnUrl,
+            @Value("${app.vnpay.employer-return-url:http://localhost:5173/employer/plan?paymentFor=employer}")
+            String employerReturnUrl) {
         this.paymentUrl = paymentUrl;
         this.tmnCode = tmnCode;
         this.hashSecret = hashSecret;
         this.returnUrl = returnUrl;
+        this.employerReturnUrl = employerReturnUrl;
+    }
+
+    public VnPayClient(String paymentUrl, String tmnCode, String hashSecret, String returnUrl) {
+        this(paymentUrl, tmnCode, hashSecret, returnUrl, returnUrl);
     }
 
     public String createPaymentUrl(
             String orderCode,
             BigDecimal amount,
             String clientIp) {
+        return createPaymentUrl(orderCode, amount, clientIp, returnUrl);
+    }
+
+    public String createEmployerPaymentUrl(
+            String orderCode,
+            BigDecimal amount,
+            String clientIp) {
+        return createPaymentUrl(orderCode, amount, clientIp, employerReturnUrl);
+    }
+
+    private String createPaymentUrl(
+            String orderCode,
+            BigDecimal amount,
+            String clientIp,
+            String targetReturnUrl) {
         requireConfigured();
+        if (targetReturnUrl.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE, "Chưa cấu hình URL quay về từ VNPay.");
+        }
 
         LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
         Map<String, String> parameters = new TreeMap<>();
@@ -59,7 +88,7 @@ public class VnPayClient {
         parameters.put("vnp_OrderInfo", "Thanh toan goi token " + orderCode);
         parameters.put("vnp_OrderType", "other");
         parameters.put("vnp_Locale", "vn");
-        parameters.put("vnp_ReturnUrl", returnUrl);
+        parameters.put("vnp_ReturnUrl", targetReturnUrl);
         parameters.put("vnp_IpAddr", clientIp);
         parameters.put("vnp_CreateDate", VNPAY_DATE.format(now));
         parameters.put("vnp_ExpireDate", VNPAY_DATE.format(now.plusMinutes(15)));
