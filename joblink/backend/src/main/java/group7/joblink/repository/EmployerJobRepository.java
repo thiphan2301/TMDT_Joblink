@@ -53,9 +53,15 @@ public interface EmployerJobRepository extends JpaRepository<Job, Integer> {
         SELECT COUNT(*) FROM jobs j
         JOIN companies c ON c.id = j.company_id
         WHERE c.owner_id = :employerId AND j.status = :status
+          AND (:status <> 'open' OR j.listing_expires_at > CURRENT_TIMESTAMP)
         """, nativeQuery = true)
     long countJobsForEmployerByStatus(@Param("employerId") Integer employerId,
                                       @Param("status") String status);
+
+    @Query(value = """
+        SELECT display_days, token_cost FROM jobs WHERE id = :jobId
+        """, nativeQuery = true)
+    Object[] findDisplayInfoById(@Param("jobId") Integer jobId);
 
     // [display_days, token_cost] của nhiều tin (2 cột V7, entity chưa map).
     @Query(value = """
@@ -111,7 +117,12 @@ public interface EmployerJobRepository extends JpaRepository<Job, Integer> {
                         job_type = :jobType, level = :level,
                         vacancies = :vacancies,
                         working_schedule = :workingSchedule,
-                        deadline = :deadline, status = :status
+                        deadline = :deadline,
+                        published_at = CASE
+                            WHEN :status = 'open' THEN COALESCE(published_at, CURRENT_TIMESTAMP)
+                            ELSE published_at
+                        END,
+                        status = :status
         WHERE id = :id
         """, nativeQuery = true)
     int updateJob(@Param("id") Integer id,
@@ -130,7 +141,15 @@ public interface EmployerJobRepository extends JpaRepository<Job, Integer> {
                   @Param("status") String status);
 
     @Modifying(clearAutomatically = true)
-    @Query(value = "UPDATE jobs SET status = :status WHERE id = :id",
+    @Query(value = """
+        UPDATE jobs
+        SET published_at = CASE
+                WHEN :status = 'open' THEN COALESCE(published_at, CURRENT_TIMESTAMP)
+                ELSE published_at
+            END,
+            status = :status
+        WHERE id = :id
+        """,
             nativeQuery = true)
     int updateJobStatus(@Param("id") Integer id, @Param("status") String status);
 

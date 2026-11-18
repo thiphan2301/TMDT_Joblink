@@ -186,6 +186,14 @@ export function replyToReview(id, content) {
   return request(`/api/employer/reviews/${id}/reply`, jsonOptions("POST", { content }));
 }
 
+export function updateReviewReply(id, content) {
+  return request(`/api/employer/reviews/${id}/reply`, jsonOptions("PUT", { content }));
+}
+
+export function deleteReviewReply(id) {
+  return request(`/api/employer/reviews/${id}/reply`, { method: "DELETE" });
+}
+
 /* ---------------- Gói dịch vụ + ví ---------------- */
 
 export function getEmployerPlan() {
@@ -202,4 +210,16 @@ export function getSubscriptionHistory() {
 
 export function getWallet() {
   return request("/api/employer/wallet");
+}
+
+export function createEmployerTokenPurchase(packageId) {
+  return request("/api/employer/purchases/tokens", jsonOptions("POST", { packageId }));
+}
+
+export function createEmployerSubscriptionPurchase(packageId) {
+  return request("/api/employer/purchases/subscriptions", jsonOptions("POST", { packageId }));
+}
+
+export function getEmployerPurchaseStatus(orderCode) {
+  return request(`/api/employer/purchases/${encodeURIComponent(orderCode)}`);
 }

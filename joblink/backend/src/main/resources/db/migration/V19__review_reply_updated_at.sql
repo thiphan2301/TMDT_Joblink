@@ -1,0 +1,1 @@
+ALTER TABLE review_replies ADD COLUMN updated_at TIMESTAMP NULL DEFAULT NULL;

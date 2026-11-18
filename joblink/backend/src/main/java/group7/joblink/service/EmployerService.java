@@ -31,7 +31,8 @@ public class EmployerService {
     private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final Set<String> EMPLOYER_JOB_STATUSES = Set.of("draft", "open", "closed");
     private static final int JOB_DISPLAY_DAYS_DEFAULT = 7;
-    private static final int JOB_TOKEN_COST_DEFAULT = 20;
+    private static final int TOKENS_PER_SEVEN_DAYS = 20;
+    private static final int JOB_DISPLAY_DAYS_MAX = 365;
 
     private final EmployerJobRepository jobRepository;
     private final JobRepository publicJobRepository;
@@ -45,6 +46,7 @@ public class EmployerService {
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final TokenWalletRepository walletRepository;
+    private final TokenTransactionRepository tokenTransactionRepository;
     private final AdminSubscriptionRepository subscriptionRepository;
     private final ServicePackageRepository packageRepository;
     private final TokenPackageRepository tokenPackageRepository;
@@ -62,6 +64,7 @@ public class EmployerService {
                            ChatMessageRepository chatMessageRepository,
                            UserRepository userRepository,
                            TokenWalletRepository walletRepository,
+                           TokenTransactionRepository tokenTransactionRepository,
                            AdminSubscriptionRepository subscriptionRepository,
                            ServicePackageRepository packageRepository,
                            TokenPackageRepository tokenPackageRepository,
@@ -78,6 +81,7 @@ public class EmployerService {
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
         this.walletRepository = walletRepository;
+        this.tokenTransactionRepository = tokenTransactionRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.packageRepository = packageRepository;
         this.tokenPackageRepository = tokenPackageRepository;
@@ -222,7 +226,21 @@ public class EmployerService {
         if (jobRepository.countOwnedCompany(req.companyId(), employerId) == 0) {
             throw forbidden("Công ty đăng tin không thuộc sở hữu của bạn.");
         }
-        boolean priority = isPriorityPlan(currentPlan(employerId).tier());
+        String status = req.status() == null ? "open" : req.status();
+        int displayDays = req.displayDays() == null
+                ? JOB_DISPLAY_DAYS_DEFAULT : req.displayDays();
+        int tokenCost = tokensForJobDuration(displayDays);
+        TokenWallet wallet = null;
+        if ("open".equals(status)) {
+            lockEmployerForPosting(employerId);
+        }
+        PlanSnapshot plan = currentPlan(employerId);
+        if ("open".equals(status)) {
+            requireJobPostCapacity(employerId, plan);
+            wallet = requireWalletForSpend(employerId, tokenCost);
+        }
+        boolean highlighted = plan.pkg() != null && plan.pkg().isCanHighlightJobs();
+        boolean prioritized = plan.pkg() != null && plan.pkg().isCanPrioritizeJobs();
         jobRepository.insertJob(req.companyId(), req.title().trim(),
                 req.description(), req.requirements(),
                 req.salaryMin(), req.salaryMax(),
@@ -231,18 +249,27 @@ public class EmployerService {
                 req.level() == null ? null : req.level().toLowerCase(Locale.ROOT),
                 req.vacancies() == null ? 1 : req.vacancies(),
                 req.workingSchedule(), req.deadline(),
-                req.status() == null ? "open" : req.status(),
-                priority, priority,
-                req.displayDays() == null ? JOB_DISPLAY_DAYS_DEFAULT : req.displayDays(),
-                req.tokenCost() == null ? JOB_TOKEN_COST_DEFAULT : req.tokenCost());
+                status,
+                highlighted, prioritized,
+                displayDays, tokenCost);
         long newId = jobRepository.lastInsertId();
+        if (wallet != null) {
+            tokenTransactionRepository.save(TokenTransaction.forJobPost(
+                    wallet, (int) newId, tokenCost));
+        }
         return getJob(employerId, (int) newId);
     }
 
     @Transactional
     public EmployerJobRow updateJob(int employerId, int jobId, EmployerJobRequest req) {
-        requireOwnJob(employerId, jobId);
+        Job job = requireOwnJob(employerId, jobId);
         validateJobRequest(req);
+        String status = req.status() == null ? "open" : req.status();
+        boolean opening = "open".equals(status)
+                && (job.getStatus() == null || !"open".equals(job.getStatus().name()));
+        if (opening) {
+            chargeForOpeningJob(employerId, jobId);
+        }
         jobRepository.updateJob(jobId, req.title().trim(),
                 req.description(), req.requirements(),
                 req.salaryMin(), req.salaryMax(),
@@ -251,15 +278,20 @@ public class EmployerService {
                 req.level() == null ? null : req.level().toLowerCase(Locale.ROOT),
                 req.vacancies() == null ? 1 : req.vacancies(),
                 req.workingSchedule(), req.deadline(),
-                req.status() == null ? "open" : req.status());
+                status);
         return getJob(employerId, jobId);
     }
 
     @Transactional
     public void setJobStatus(int employerId, int jobId, String status) {
-        requireOwnJob(employerId, jobId);
+        Job job = requireOwnJob(employerId, jobId);
         if (status == null || !EMPLOYER_JOB_STATUSES.contains(status)) {
             throw badRequest("Trạng thái tin không hợp lệ (chỉ có draft, open, closed).");
+        }
+        boolean opening = "open".equals(status)
+                && (job.getStatus() == null || !"open".equals(job.getStatus().name()));
+        if (opening) {
+            chargeForOpeningJob(employerId, jobId);
         }
         jobRepository.updateJobStatus(jobId, status);
     }
@@ -652,6 +684,32 @@ public class EmployerService {
         return getReviews(employerId);
     }
 
+    @Transactional
+    public ReviewsResponse updateReviewReply(int employerId, int reviewId, String content) {
+        if (content == null || content.isBlank()) {
+            throw badRequest("Vui lòng nhập nội dung phản hồi.");
+        }
+        if (reviewRepository.countOwnReview(reviewId, employerId) == 0) {
+            throw notFound("Không tìm thấy đánh giá thuộc công ty của bạn.");
+        }
+        if (reviewRepository.countOwnReply(reviewId, employerId) == 0) {
+            throw notFound("Không tìm thấy phản hồi để cập nhật.");
+        }
+        reviewRepository.updateReply(reviewId, employerId, content.trim());
+        return getReviews(employerId);
+    }
+
+    @Transactional
+    public ReviewsResponse deleteReviewReply(int employerId, int reviewId) {
+        if (reviewRepository.countOwnReview(reviewId, employerId) == 0) {
+            throw notFound("Không tìm thấy đánh giá thuộc công ty của bạn.");
+        }
+        if (reviewRepository.deleteReply(reviewId, employerId) == 0) {
+            throw notFound("Không tìm thấy phản hồi để xóa.");
+        }
+        return getReviews(employerId);
+    }
+
     /* ---------------- Gói dịch vụ + ví Token ---------------- */
 
     @Transactional(readOnly = true)
@@ -674,6 +732,15 @@ public class EmployerService {
                 plan.endsAt(),
                 walletBalance(employerId)
         );
+    }
+
+    @Transactional
+    public void refreshJobFeatures(int employerId) {
+        ServicePackage servicePackage = currentPlan(employerId).pkg();
+        subscriptionRepository.setEmployerJobFlags(
+                employerId,
+                servicePackage != null && servicePackage.isCanHighlightJobs(),
+                servicePackage != null && servicePackage.isCanPrioritizeJobs());
     }
 
     @Transactional(readOnly = true)
@@ -738,7 +805,9 @@ public class EmployerService {
         List<TokenTxnRow> transactions = tokenRepository
                 .findRecentTransactions(employerId, 30).stream()
                 .map(r -> new TokenTxnRow(toInt(r[0]), str(r[1]), toInt(r[2]),
-                        toInt(r[3]), str(r[4]), toInt(r[5]), toDateTime(r[6])))
+                        toInt(r[3]), str(r[4]), toInt(r[5]), toDateTime(r[6]),
+                        str(r[7]), r[8] == null ? null : new BigDecimal(r[8].toString()),
+                        str(r[9])))
                 .toList();
         return new WalletInfo(walletBalance(employerId), transactions);
     }
@@ -757,7 +826,8 @@ public class EmployerService {
         List<Subscription> active = subscriptionRepository
                 .findByEmployerIdAndStatus(employerId, Subscription.Status.active);
         for (Subscription sub : active) {
-            if (sub.getEndAt() == null || !sub.getEndAt().isAfter(now)) {
+            if (sub.getStartAt() == null || sub.getStartAt().isAfter(now)
+                    || sub.getEndAt() == null || !sub.getEndAt().isAfter(now)) {
                 continue;
             }
             ServicePackage pkg = packageRepository.findById(sub.getPackageId()).orElse(null);
@@ -783,8 +853,58 @@ public class EmployerService {
                                 Integer subscriptionId) {
     }
 
-    private static boolean isPriorityPlan(String tier) {
-        return "pro".equals(tier) || "premium".equals(tier);
+    private void requireJobPostCapacity(int employerId, PlanSnapshot plan) {
+        ServicePackage servicePackage = plan.pkg();
+        Integer limit = servicePackage == null ? null : servicePackage.getJobPostLimit();
+        if (limit != null
+                && jobRepository.countJobsForEmployerByStatus(employerId, "open") >= limit) {
+            throw forbidden("Gói " + servicePackage.getName()
+                    + " giới hạn " + limit + " tin đang hiển thị. "
+                    + "Hãy đóng một tin hoặc nâng cấp gói.");
+        }
+    }
+
+    private void chargeForOpeningJob(int employerId, int jobId) {
+        lockEmployerForPosting(employerId);
+        requireJobPostCapacity(employerId, currentPlan(employerId));
+        if (tokenTransactionRepository.existsByIdempotencyKey("job:" + jobId)) {
+            return;
+        }
+        Object[] displayInfo = jobRepository.findDisplayInfoById(jobId);
+        int displayDays = displayInfo == null || displayInfo[0] == null
+                ? JOB_DISPLAY_DAYS_DEFAULT : toInt(displayInfo[0]);
+        int tokenCost = displayInfo == null || displayInfo[1] == null
+                ? tokensForJobDuration(displayDays) : toInt(displayInfo[1]);
+        TokenWallet wallet = requireWalletForSpend(employerId, tokenCost);
+        tokenTransactionRepository.save(TokenTransaction.forJobPost(
+                wallet, jobId, tokenCost));
+    }
+
+    private void lockEmployerForPosting(int employerId) {
+        userRepository.findForUpdate(employerId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Không tìm thấy tài khoản nhà tuyển dụng."));
+    }
+
+    private TokenWallet requireWalletForSpend(int employerId, int tokenCost) {
+        TokenWallet wallet = walletRepository.findForUpdate(employerId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.PAYMENT_REQUIRED,
+                        "Không tìm thấy ví Token. Vui lòng liên hệ quản trị viên."));
+        if (wallet.getBalance() < tokenCost) {
+            throw new ResponseStatusException(
+                    HttpStatus.PAYMENT_REQUIRED,
+                    "Ví của bạn còn " + wallet.getBalance() + " Token nhưng tin này cần "
+                            + tokenCost + " Token. Hãy mua thêm Token rồi thử lại.");
+        }
+        return wallet;
+    }
+
+    static int tokensForJobDuration(int displayDays) {
+        if (displayDays < 1 || displayDays > JOB_DISPLAY_DAYS_MAX) {
+            throw new IllegalArgumentException("Thời hạn tin phải từ 1 đến 365 ngày.");
+        }
+        return ((displayDays + 6) / 7) * TOKENS_PER_SEVEN_DAYS;
     }
 
     private Integer walletBalance(int employerId) {
@@ -815,6 +935,10 @@ public class EmployerService {
         if (req == null || req.title() == null || req.title().isBlank()) {
             throw badRequest("Vui lòng nhập tên vị trí.");
         }
+        if (req.displayDays() != null
+                && (req.displayDays() < 1 || req.displayDays() > JOB_DISPLAY_DAYS_MAX)) {
+            throw badRequest("Thời hạn tin phải từ 1 đến 365 ngày.");
+        }
         if (req.companyId() == null) {
             throw badRequest("Vui lòng chọn công ty đăng tin.");
         }
@@ -839,8 +963,10 @@ public class EmployerService {
         Integer displayDaysCol = displayInfo == null ? null : displayInfo[0];
         Integer tokenCostCol = displayInfo == null ? null : displayInfo[1];
         int displayDays = displayDaysCol == null ? JOB_DISPLAY_DAYS_DEFAULT : displayDaysCol;
-        int tokenCost = tokenCostCol == null ? JOB_TOKEN_COST_DEFAULT : tokenCostCol;
+        int tokenCost = tokenCostCol == null
+                ? tokensForJobDuration(displayDays) : tokenCostCol;
         LocalDateTime createdAt = job.getCreatedAt();
+        LocalDateTime expiresAt = job.getListingExpiresAt();
         Company company = job.getCompany();
         return new EmployerJobRow(
                 job.getId(),
@@ -863,7 +989,7 @@ public class EmployerService {
                 displayDays,
                 tokenCost,
                 createdAt,
-                createdAt == null ? null : createdAt.plusDays(displayDays),
+                expiresAt,
                 applicants,
                 newApplicants
         );

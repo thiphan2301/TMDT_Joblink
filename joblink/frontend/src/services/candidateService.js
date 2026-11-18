@@ -18,6 +18,18 @@ export function getCandidateWallet() {
   return request("/api/candidate/wallet");
 }
 
+export function createCandidateTokenPurchase(packageId) {
+  return request("/api/candidate/wallet/purchases", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ packageId }),
+  });
+}
+
+export function getCandidateTokenPurchase(orderCode) {
+  return request(`/api/candidate/wallet/purchases/${encodeURIComponent(orderCode)}`);
+}
+
 // Hồ sơ rút gọn của ứng viên (tên, avatar, kỹ năng, độ hoàn thiện).
 export function getAssistantProfile() {
   return request("/api/assistant/profile");

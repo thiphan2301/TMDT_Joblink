@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { EmployerModal } from "../../components/employer/EmployerModal.jsx";
 import {
@@ -11,16 +11,16 @@ import {
 } from "../../components/employer/employerFormat.js";
 import useEmployerData from "../../hooks/useEmployerData.js";
 import {
-  getPackages, getSubscriptionHistory, getWallet,
+  createEmployerSubscriptionPurchase, createEmployerTokenPurchase,
+  getEmployerPurchaseStatus, getPackages, getSubscriptionHistory, getWallet,
 } from "../../services/employerService.js";
 
 // Trang "Gói dịch vụ" theo thiết kế Employer Portal: banner giới
 // thiệu kèm panel gói hiện tại, thẻ giá các gói đang bán + thẻ các
 // gói Token (đều đọc từ database qua API — giá và giới hạn do admin
 // cấu hình), bảng so sánh quyền lợi và lịch sử đăng ký thật của
-// tài khoản. Thanh toán trực tuyến chưa có (đó là chức năng
-// riêng của hệ thống) nên nút Đăng ký/Mua mở hộp thoại nói rõ
-// cách cấp hiện tại — trang không có nút mua giả.
+// tài khoản. VNPay IPN là nguồn xác nhận duy nhất để kích hoạt gói
+// và cộng Token tặng kèm.
 const TIER_OF_NAME = (name) =>
     name === "Premium" ? "premium" : name === "Pro" ? "pro" : "basic";
 const PLAN_TAGLINES = {
@@ -62,6 +62,80 @@ export default function EmployerPlan() {
   const [upgradePkg, setUpgradePkg] = useState(null);
   const [tokenPkg, setTokenPkg] = useState(null);
   const [detailRow, setDetailRow] = useState(null);
+  const [purchaseBusy, setPurchaseBusy] = useState("");
+  const [purchaseError, setPurchaseError] = useState("");
+  const search = new URLSearchParams(window.location.search);
+  const returnOrderCode = search.get("vnp_TxnRef");
+  const isEmployerPaymentReturn = search.get("paymentFor") === "employer";
+  const returnResult = search.get("paymentResult");
+  const [paymentNotice, setPaymentNotice] = useState(() => {
+    if (returnResult === "success") return "Thanh toán thành công. Gói và Token đã được cập nhật.";
+    if (returnResult === "failed") return "Giao dịch chưa thành công hoặc đã bị hủy.";
+    if (isEmployerPaymentReturn && returnOrderCode) return "Đang chờ VNPay xác nhận giao dịch...";
+    return "";
+  });
+
+  useEffect(() => {
+    if (returnResult) {
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
+    }
+  }, [returnResult]);
+
+  useEffect(() => {
+    if (!isEmployerPaymentReturn || !returnOrderCode) return undefined;
+
+    let cancelled = false;
+    let timer;
+    let attempts = 0;
+
+    const checkStatus = async () => {
+      try {
+        const status = await getEmployerPurchaseStatus(returnOrderCode);
+        if (cancelled) return;
+        if (status.orderStatus === "paid" || status.orderStatus === "fulfilled") {
+          window.location.replace("/employer/plan?paymentResult=success");
+          return;
+        }
+        if (status.orderStatus === "failed" || status.orderStatus === "cancelled") {
+          setPaymentNotice("Giao dịch chưa thành công hoặc đã bị hủy; số dư và gói dịch vụ không thay đổi.");
+          window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
+          return;
+        }
+        if (attempts < 15) {
+          attempts += 1;
+          timer = window.setTimeout(checkStatus, 2000);
+        } else {
+          setPaymentNotice("VNPay chưa gửi xác nhận về hệ thống. Hãy tải lại sau ít phút để kiểm tra trạng thái đơn.");
+          window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPaymentNotice(err.message || "Không kiểm tra được trạng thái giao dịch.");
+          window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
+        }
+      }
+    };
+
+    checkStatus();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isEmployerPaymentReturn, returnOrderCode]);
+
+  async function beginPurchase(kind, product) {
+    setPurchaseBusy(`${kind}:${product.id}`);
+    setPurchaseError("");
+    try {
+      const purchase = kind === "subscription"
+        ? await createEmployerSubscriptionPurchase(product.id)
+        : await createEmployerTokenPurchase(product.id);
+      window.location.assign(purchase.paymentUrl);
+    } catch (err) {
+      setPurchaseError(err.message || "Không thể tạo yêu cầu thanh toán.");
+      setPurchaseBusy("");
+    }
+  }
 
   const currentTier = data?.currentPlan || "basic";
   const packages = data?.packages || [];
@@ -142,6 +216,8 @@ export default function EmployerPlan() {
         </section>
 
         {error && <p className="emp-error">{error}</p>}
+        {purchaseError && <p className="emp-error">{purchaseError}</p>}
+        {paymentNotice && <p className="emp-success">{paymentNotice}</p>}
         {loading && <p className="emp-muted">Đang tải danh sách gói...</p>}
         {!loading && packages.length === 0 && !error && (
             <p className="emp-muted">Hiện chưa có gói dịch vụ nào đang bán.</p>
@@ -180,11 +256,14 @@ export default function EmployerPlan() {
                     <Perk on={pkg.canHighlightJobs}>Tin hiển thị nổi bật</Perk>
                   </ul>
                   <div className="emp-price-card__cta">
-                    {isCurrent ? (
-                        <button type="button" className="emp-btn" disabled>Gói đang sử dụng</button>
+                    {isCurrent || pkg.price <= 0 ? (
+                        <button type="button" className="emp-btn" disabled>
+                          {isCurrent ? "Gói đang sử dụng" : "Gói miễn phí"}
+                        </button>
                     ) : (
                         <button type="button"
                                 className={`emp-btn ${isPopular ? "emp-btn--primary" : ""}`}
+                                disabled={purchaseBusy !== ""}
                                 onClick={() => setUpgradePkg(pkg)}>
                           Đăng ký ngay
                         </button>
@@ -210,6 +289,7 @@ export default function EmployerPlan() {
                       <span className="emp-token-card__tokens">{tp.tokens} Token</span>
                       <span className="emp-token-card__price">{formatMoney(tp.price)}</span>
                       <button type="button" className="emp-btn" style={{ marginTop: 11, justifyContent: "center" }}
+                              disabled={purchaseBusy !== ""}
                               onClick={() => setTokenPkg(tp)}>
                         Mua Token
                       </button>
@@ -368,17 +448,20 @@ export default function EmployerPlan() {
                 <Perk on={upgradePkg.canDirectContact}>Liên hệ trực tiếp ứng viên</Perk>
               </ul>
               <div className="emp-suggest-box" style={{ marginTop: 0 }}>
-                <strong><IconInfo size={15} /> CÁCH ĐĂNG KÝ HIỆN TẠI</strong>
+                <strong><IconInfo size={15} /> THANH TOÁN AN TOÀN QUA VNPAY</strong>
                 <p>
-                  Thanh toán trực tuyến đang được hoàn thiện. Ở thời điểm hiện
-                  tại, gói dịch vụ được quản trị viên JobLink cấp trực tiếp cho
-                  tài khoản của bạn — sau khi được cấp, gói và Token tặng kèm sẽ
-                  xuất hiện trong mục Lịch sử đăng ký và Ví Token.
+                  Gói chỉ được kích hoạt và Token tặng kèm chỉ được cộng sau khi
+                  JobLink nhận được xác nhận thanh toán hợp lệ từ VNPay.
                 </p>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-                <button type="button" className="emp-btn emp-btn--primary" onClick={() => setUpgradePkg(null)}>
-                  Đã hiểu
+                <button
+                  type="button"
+                  className="emp-btn emp-btn--primary"
+                  disabled={purchaseBusy !== ""}
+                  onClick={() => beginPurchase("subscription", upgradePkg)}
+                >
+                  {purchaseBusy === `subscription:${upgradePkg.id}` ? "Đang chuyển đến VNPay..." : "Thanh toán qua VNPay"}
                 </button>
               </div>
             </EmployerModal>
@@ -391,17 +474,20 @@ export default function EmployerPlan() {
                 <span style={{ fontSize: 15, color: "#0b5cff", fontWeight: 700 }}> · {formatMoney(tokenPkg.price)}</span>
               </p>
               <div className="emp-suggest-box" style={{ marginTop: 0 }}>
-                <strong><IconInfo size={15} /> CÁCH MUA HIỆN TẠI</strong>
+                <strong><IconInfo size={15} /> THANH TOÁN AN TOÀN QUA VNPAY</strong>
                 <p>
-                  Thanh toán trực tuyến đang được hoàn thiện nên gói Token chưa
-                  mua trực tiếp tại đây được. Hiện Token được cấp kèm theo gói
-                  dịch vụ hoặc bởi quản trị viên — mọi biến động số dư đều hiển
-                  thị trong Ví Token của bạn.
+                  Token sẽ được cộng vào ví sau khi JobLink nhận được xác nhận
+                  thanh toán hợp lệ từ VNPay.
                 </p>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-                <button type="button" className="emp-btn emp-btn--primary" onClick={() => setTokenPkg(null)}>
-                  Đã hiểu
+                <button
+                  type="button"
+                  className="emp-btn emp-btn--primary"
+                  disabled={purchaseBusy !== ""}
+                  onClick={() => beginPurchase("token", tokenPkg)}
+                >
+                  {purchaseBusy === `token:${tokenPkg.id}` ? "Đang chuyển đến VNPay..." : "Thanh toán qua VNPay"}
                 </button>
               </div>
             </EmployerModal>

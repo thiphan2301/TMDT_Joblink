@@ -19,4 +19,18 @@ public interface CandidateWalletRepository extends JpaRepository<TokenWallet, In
         WHERE wallet_id = :userId
         """, nativeQuery = true)
     List<Object[]> findTotals(@Param("userId") Integer userId);
+
+    @Query(value = """
+        SELECT t.id, t.type, t.amount, t.balance_after, t.ref_type, t.ref_id,
+               t.created_at, o.order_code, p.amount, p.gateway
+        FROM token_transactions t
+        LEFT JOIN orders o ON o.id = t.order_id
+        LEFT JOIN payments p ON p.order_id = o.id AND p.status = 'success'
+        WHERE t.wallet_id = :userId
+        ORDER BY t.created_at DESC, t.id DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<Object[]> findRecentTransactionsWithPaymentDetails(
+            @Param("userId") Integer userId,
+            @Param("limit") int limit);
 }

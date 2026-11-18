@@ -2,12 +2,15 @@ package group7.joblink.controller;
 
 import group7.joblink.dto.request.EmployerRequests.CompanyUpdateRequest;
 import group7.joblink.dto.request.EmployerRequests.EmployerJobRequest;
+import group7.joblink.dto.request.EmployerRequests.PurchaseRequest;
 import group7.joblink.dto.request.EmployerRequests.ReplyRequest;
 import group7.joblink.dto.request.EmployerRequests.StatusRequest;
 import group7.joblink.dto.response.EmployerResponses.*;
 import group7.joblink.service.EmployerImageStorageService;
+import group7.joblink.service.EmployerPaymentService;
 import group7.joblink.service.EmployerService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
@@ -32,13 +35,16 @@ import java.util.concurrent.TimeUnit;
 public class EmployerController {
 
     private final EmployerService employerService;
+    private final EmployerPaymentService paymentService;
     private final EmployerAccess employerAccess;
     private final EmployerImageStorageService imageStorage;
 
     public EmployerController(EmployerService employerService,
+                              EmployerPaymentService paymentService,
                               EmployerAccess employerAccess,
                               EmployerImageStorageService imageStorage) {
         this.employerService = employerService;
+        this.paymentService = paymentService;
         this.employerAccess = employerAccess;
         this.imageStorage = imageStorage;
     }
@@ -245,6 +251,22 @@ public class EmployerController {
                 employerId, id, body == null ? null : body.content());
     }
 
+    @PutMapping("/reviews/{id}/reply")
+    public ReviewsResponse updateReviewReply(
+            @PathVariable int id, @RequestBody ReplyRequest body,
+            HttpServletRequest request) {
+        int employerId = employerAccess.requireEmployerId(request);
+        return employerService.updateReviewReply(
+                employerId, id, body == null ? null : body.content());
+    }
+
+    @DeleteMapping("/reviews/{id}/reply")
+    public ReviewsResponse deleteReviewReply(
+            @PathVariable int id, HttpServletRequest request) {
+        int employerId = employerAccess.requireEmployerId(request);
+        return employerService.deleteReviewReply(employerId, id);
+    }
+
     /* ---------------- Gói dịch vụ + ví ---------------- */
 
     @GetMapping("/plan")
@@ -269,5 +291,40 @@ public class EmployerController {
     public WalletInfo wallet(HttpServletRequest request) {
         int employerId = employerAccess.requireEmployerId(request);
         return employerService.getWallet(employerId);
+    }
+
+    @PostMapping("/purchases/tokens")
+    public PurchaseCreated purchaseTokens(
+            @Valid @RequestBody PurchaseRequest body,
+            HttpServletRequest request) {
+        int employerId = employerAccess.requireEmployerId(request);
+        return paymentService.createTokenPurchase(
+                employerId, body.packageId(), clientIp(request));
+    }
+
+    @PostMapping("/purchases/subscriptions")
+    public PurchaseCreated purchaseSubscription(
+            @Valid @RequestBody PurchaseRequest body,
+            HttpServletRequest request) {
+        int employerId = employerAccess.requireEmployerId(request);
+        return paymentService.createSubscriptionPurchase(
+                employerId, body.packageId(), clientIp(request));
+    }
+
+    @GetMapping("/purchases/{orderCode}")
+    public PurchaseStatus purchaseStatus(
+            @PathVariable String orderCode,
+            HttpServletRequest request) {
+        int employerId = employerAccess.requireEmployerId(request);
+        return paymentService.getPurchaseStatus(employerId, orderCode);
+    }
+
+    private static String clientIp(HttpServletRequest request) {
+        String remoteAddress = request.getRemoteAddr();
+        return remoteAddress == null
+                || remoteAddress.equals("0:0:0:0:0:0:0:1")
+                || remoteAddress.equals("::1")
+                ? "127.0.0.1"
+                : remoteAddress;
     }
 }

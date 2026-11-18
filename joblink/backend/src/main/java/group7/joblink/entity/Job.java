@@ -78,6 +78,13 @@ public class Job {
     )
     private LocalDateTime createdAt;
 
+    @Column(
+        name = "listing_expires_at",
+        insertable = false,
+        updatable = false
+    )
+    private LocalDateTime listingExpiresAt;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "job_skills",

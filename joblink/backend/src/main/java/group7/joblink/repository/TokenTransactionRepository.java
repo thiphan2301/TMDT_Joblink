@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TokenTransactionRepository
         extends JpaRepository<TokenTransaction, Integer> {
+
+    boolean existsByIdempotencyKey(String idempotencyKey);
 }

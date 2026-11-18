@@ -708,6 +708,7 @@ public class AdminService {
     private JobRow toJobRow(Job job, long applicants, Integer employerWalletBalance,
                             Integer[] displayInfo, String employerPlan) {
         LocalDateTime createdAt = job.getCreatedAt();
+        LocalDateTime expiresAt = job.getListingExpiresAt();
         BigDecimal min = job.getSalaryMin();
         BigDecimal max = job.getSalaryMax();
         // display_days / token_cost đọc từ DB qua truy vấn native (entity chưa map).
@@ -734,7 +735,7 @@ public class AdminService {
                 displayDays,
                 tokenCost,
                 createdAt,
-                createdAt == null ? null : createdAt.plusDays(displayDays),
+                expiresAt,
                 employerWalletBalance,
                 applicants,
                 employerPlan

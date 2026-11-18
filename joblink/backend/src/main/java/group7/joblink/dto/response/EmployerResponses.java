@@ -353,6 +353,24 @@ public final class EmployerResponses {
     ) {
     }
 
+    public record PurchaseCreated(
+            String orderCode,
+            String paymentUrl,
+            BigDecimal amount,
+            String productName
+    ) {
+    }
+
+    public record PurchaseStatus(
+            String orderCode,
+            String orderStatus,
+            String paymentStatus,
+            BigDecimal amount,
+            String productName,
+            LocalDateTime createdAt
+    ) {
+    }
+
     public record TokenTxnRow(
             Integer id,
             String type,               // welcome | purchase | spend | refund | adjustment
@@ -360,7 +378,10 @@ public final class EmployerResponses {
             int balanceAfter,
             String refType,
             Integer refId,
-            LocalDateTime createdAt
+            LocalDateTime createdAt,
+            String orderCode,
+            BigDecimal paymentAmount,
+            String paymentGateway
     ) {
     }
 }

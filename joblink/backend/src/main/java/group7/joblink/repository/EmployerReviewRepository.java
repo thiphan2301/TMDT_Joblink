@@ -22,7 +22,7 @@ public interface EmployerReviewRepository extends Repository<group7.joblink.enti
                (SELECT rr.content FROM review_replies rr
                 WHERE rr.review_id = r.id
                 ORDER BY rr.created_at DESC, rr.id DESC LIMIT 1),
-               (SELECT rr.created_at FROM review_replies rr
+               (SELECT COALESCE(rr.updated_at, rr.created_at) FROM review_replies rr
                 WHERE rr.review_id = r.id
                 ORDER BY rr.created_at DESC, rr.id DESC LIMIT 1)
         FROM company_reviews r
@@ -64,6 +64,17 @@ public interface EmployerReviewRepository extends Repository<group7.joblink.enti
     long countOwnReview(@Param("reviewId") Integer reviewId,
                         @Param("employerId") Integer employerId);
 
+    @Query(value = """
+        SELECT COUNT(*) FROM review_replies rr
+        JOIN company_reviews r ON r.id = rr.review_id
+        JOIN companies comp ON comp.id = r.company_id
+        WHERE rr.review_id = :reviewId
+          AND rr.employer_id = :employerId
+          AND comp.owner_id = :employerId
+        """, nativeQuery = true)
+    long countOwnReply(@Param("reviewId") Integer reviewId,
+                       @Param("employerId") Integer employerId);
+
     @Modifying
     @Query(value = """
         INSERT INTO review_replies (review_id, employer_id, content)
@@ -72,4 +83,32 @@ public interface EmployerReviewRepository extends Repository<group7.joblink.enti
     int insertReply(@Param("reviewId") Integer reviewId,
                     @Param("employerId") Integer employerId,
                     @Param("content") String content);
+
+    @Modifying
+    @Query(value = """
+        UPDATE review_replies rr
+        JOIN company_reviews r ON r.id = rr.review_id
+        JOIN companies comp ON comp.id = r.company_id
+        SET rr.content = :content,
+            rr.updated_at = CURRENT_TIMESTAMP
+        WHERE rr.review_id = :reviewId
+          AND rr.employer_id = :employerId
+          AND comp.owner_id = :employerId
+        """, nativeQuery = true)
+    int updateReply(@Param("reviewId") Integer reviewId,
+                    @Param("employerId") Integer employerId,
+                    @Param("content") String content);
+
+    @Modifying
+    @Query(value = """
+        DELETE rr
+        FROM review_replies rr
+        JOIN company_reviews r ON r.id = rr.review_id
+        JOIN companies comp ON comp.id = r.company_id
+        WHERE rr.review_id = :reviewId
+          AND rr.employer_id = :employerId
+          AND comp.owner_id = :employerId
+        """, nativeQuery = true)
+    int deleteReply(@Param("reviewId") Integer reviewId,
+                    @Param("employerId") Integer employerId);
 }

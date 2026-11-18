@@ -90,8 +90,18 @@
   border: 1px solid #d7e0ec; background: #fff; color: #0f2540; font-size: 13.5px; font-weight: 650;
   cursor: pointer; text-decoration: none; font-family: inherit;
 }
+.candw-btn:disabled { opacity: .6; cursor: wait; }
 .candw-btn--primary { background: #0b5cff; border-color: #0b5cff; color: #fff; }
 .candw-btn--dark { background: #0a2540; border-color: #0a2540; color: #fff; }
+.candw-payment-notice {
+  display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: #eff8ff; border: 1px solid #b2ddff; color: #1849a9; border-radius: 14px; padding: 15px 18px;
+}
+.candw-payment-notice.is-error { background: #fef3f2; border-color: #fecdca; color: #b42318; }
+.candw-payment-notice strong { display: block; margin-bottom: 3px; }
+.candw-payment-notice p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+.candw-payment-notice .candw-btn { flex-shrink: 0; }
+.candw-payment-error { margin: 0; color: #b42318; background: #fef3f2; border-radius: 10px; padding: 10px 14px; }
 .candw-balance {
   background: #fff; border: 1px solid #e6ecf3; border-radius: 18px; padding: 22px 24px;
 }
