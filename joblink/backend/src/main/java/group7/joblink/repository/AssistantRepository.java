@@ -53,6 +53,34 @@ public interface AssistantRepository extends JpaRepository<User, Integer> {
         """, nativeQuery = true)
     List<Object[]> searchJobs(@Param("kw") String kw, @Param("limit") int limit);
 
+    // Chỉ lấy tin đang công khai và chưa hết hạn để làm nguồn RAG.
+    // Trả [id, title, description, requirements, company, company_description,
+    //      location, job_type, level, salary_min, salary_max, salary_unit].
+    @Query(value = """
+        SELECT j.id, j.title, j.description, j.requirements, c.name,
+               c.description, j.location, j.job_type, j.level,
+               j.salary_min, j.salary_max, j.salary_unit
+        FROM jobs j
+        JOIN companies c ON c.id = j.company_id
+        WHERE j.status = 'open'
+          AND j.listing_expires_at > CURRENT_TIMESTAMP
+        ORDER BY j.is_prioritized DESC, j.id DESC
+        """, nativeQuery = true)
+    List<Object[]> findPublicJobDocuments();
+
+    // Chỉ lấy đơn ứng tuyển thuộc ứng viên hiện tại.
+    // Trả [job_title, company_name, status, applied_at].
+    @Query(value = """
+        SELECT j.title, c.name, a.status, a.applied_at
+        FROM applications a
+        JOIN jobs j ON j.id = a.job_id
+        JOIN companies c ON c.id = j.company_id
+        WHERE a.candidate_id = :userId
+        ORDER BY a.applied_at DESC, a.id DESC
+        LIMIT 10
+        """, nativeQuery = true)
+    List<Object[]> findMyApplications(@Param("userId") Integer userId);
+
     // Trả một hàng [job_count, avg_salary_min, avg_salary_max].
     @Query(value = """
         SELECT COUNT(*), AVG(salary_min), AVG(salary_max)

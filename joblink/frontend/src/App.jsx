@@ -338,7 +338,7 @@ export default function App() {
                     <Route path="/history" element={<CandidateEmptyPage />} />
                     <Route path="/tin-nhan" element={<MessagesPage />} />
                     <Route path="/messages" element={<Navigate to="/tin-nhan" replace />} />
-                    <Route path="/tro-ly-ai" element={<AssistantPage />} />
+                    <Route path="/tro-ly-ai" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/vi-token" element={<CandidateWalletPage />} />
 
                     {/* Đường dẫn cũ từ đợt giao diện trước -> chuyển về
@@ -389,6 +389,9 @@ export default function App() {
                     />
                 </Routes>
             </main>
+            {isAuthenticated && currentUser?.role === "candidate" && (
+                <AssistantPage />
+            )}
         </>
     );
 }

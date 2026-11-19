@@ -138,6 +138,74 @@ Sandbox và mở IPN URL công khai của backend đang chạy trên máy đó (
 Khi deploy ứng dụng có HTTPS công khai ổn định thì dùng URL backend đã deploy,
 không cần ngrok.
 
+### Chạy Trợ lý AI local (Ollama)
+
+Chatbot dùng API local của Ollama, không cần Spring AI hay API AI thương mại.
+Lệnh `ollama pull` tải model một lần; khi chat, backend chỉ gọi Ollama trên
+loopback và không gửi câu hỏi/dữ liệu lên dịch vụ AI đám mây.
+Backend giữ endpoint hiện có `/api/assistant/chat`; user ID được lấy từ phiên
+đăng nhập, không nhận từ trình duyệt. RAG hiện tìm trên tin tuyển dụng công khai
+đang còn hạn; câu hỏi về đơn ứng tuyển, lịch phỏng vấn, hồ sơ hoặc ví chỉ truy
+vấn dữ liệu của ứng viên đang đăng nhập. Hiện chưa có nguồn FAQ để lập chỉ mục.
+
+**1. Cài Ollama và tải model**
+
+Cài Ollama cho Windows từ [ollama.com/download](https://ollama.com/download),
+sau đó mở một PowerShell riêng và chạy:
+
+```powershell
+ollama pull qwen2.5:3b
+ollama pull nomic-embed-text
+ollama list
+```
+
+`qwen2.5:3b` dùng để tạo câu trả lời, `nomic-embed-text` dùng để biến tin tuyển
+dụng và câu hỏi thành vector. Cần tải cả hai model; model `qwen2.5-coder` chỉ
+được tinh chỉnh cho lập trình và không thay thế model chat nói trên. Máy ít RAM
+có thể thử `qwen2.5:1.5b` và đổi cấu hình chat model bên dưới.
+
+Ollama thường chạy nền sau khi cài. Nếu chưa hoạt động, chạy `ollama serve` ở
+PowerShell riêng và giữ tiến trình đó mở.
+
+**2. Chạy ứng dụng**
+
+Đảm bảo Ollama đang chạy, sau đó khởi động backend và frontend theo hướng dẫn
+ở trên rồi đăng nhập bằng tài khoản ứng viên. Backend mặc định gọi
+`http://localhost:11434`; biến môi trường tùy chọn:
+
+```powershell
+$env:OLLAMA_BASE_URL = "http://localhost:11434"
+$env:OLLAMA_CHAT_MODEL = "qwen2.5:3b"
+$env:OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
+$env:OLLAMA_TIMEOUT_SECONDS = "120"
+```
+
+Chỉ địa chỉ loopback (`localhost`, `127.0.0.1` hoặc `::1`) được chấp nhận. Khi
+backend khởi động, Flyway áp dụng migration `V21` để tạo bảng chỉ mục. Chỉ mục
+được đồng bộ nền sau 20 giây và làm mới mỗi giờ; lần đầu có thể tốn thời gian
+do Ollama phải tạo embedding cho các tin đang mở. Thay đổi nội dung tin sẽ được
+đưa vào chỉ mục ở lần đồng bộ kế tiếp.
+
+Nếu chatbot báo không kết nối được Ollama, kiểm tra Ollama có chạy và hai model
+đã xuất hiện trong `ollama list`. Nếu báo thiếu model, kiểm tra tên model trong
+cấu hình. Chatbot không dùng ngrok; chỉ cần backend gọi được Ollama trên máy
+đang chạy backend.
+
+**Xem prompt và câu trả lời local**
+
+Mặc định backend không ghi nội dung câu chat để tránh lưu dữ liệu cá nhân.
+Khi cần kiểm tra luồng RAG trên máy, thêm vào `application-local.properties`:
+
+```properties
+logging.level.group7.joblink.service.OllamaAssistantClient=DEBUG
+```
+
+Sau đó khởi động lại backend. Terminal backend sẽ ghi system prompt, context
+truy xuất, câu hỏi và câu trả lời ở mức DEBUG. Ollama thường không hiển thị
+prompt/câu trả lời trong cửa sổ ứng dụng Ollama hay màn hình chat web; nhật ký
+này nằm ở terminal backend. Không bật DEBUG trên server production nếu prompt
+có thể chứa dữ liệu cá nhân.
+
 ### Chạy model Phân loại bình luận
 
 Mở PowerShell tại thư mục `joblink/sentiment-service` và chạy:

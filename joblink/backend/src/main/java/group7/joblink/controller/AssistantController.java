@@ -5,6 +5,7 @@ import group7.joblink.dto.response.CandidateResponses.AssistantProfile;
 import group7.joblink.dto.response.CandidateResponses.AssistantReply;
 import group7.joblink.service.AssistantService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,9 +31,9 @@ public class AssistantController {
     }
 
     @PostMapping("/chat")
-    public AssistantReply chat(@RequestBody AssistantChatRequest body,
+    public AssistantReply chat(@Valid @RequestBody AssistantChatRequest body,
                                HttpServletRequest request) {
         int userId = CurrentUser.requireId(request);
-        return assistantService.chat(userId, body == null ? null : body.message());
+        return assistantService.chat(userId, body.message());
     }
 }
