@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { getCurrentUser } from "../../services/authService";
 import {
   getConversations, getChatMessages, sendChatMessageRest, sendChatImage,
@@ -7,7 +7,7 @@ import {
 } from "../../services/chatService";
 import { initialsOf, formatChatTime } from "../../components/employer/employerFormat.js";
 import {
-  IconSend, IconChat, IconCrown, IconSmile, IconImage,
+  IconSend, IconChat, IconSmile, IconImage,
 } from "../../components/employer/EmployerIcons.jsx";
 import "../../style/Chat.css";
 
@@ -25,9 +25,8 @@ const EMOJIS = [
 // ứng viên (/tin-nhan): danh sách cuộc trò chuyện + khung chat
 // realtime qua WebSocket (tự nối lại khi rớt mạng, gửi không được
 // qua socket thì rơi về REST). Mở cuộc trò chuyện là backend tự
-// đánh dấu đã đọc các tin của đối phương. Phía nhà tuyển dụng,
-// chat yêu cầu gói Pro/Premium — backend trả 403 thì trang hiện
-// màn hình mở khóa (ứng viên không bị cổng này).
+// đánh dấu đã đọc các tin của đối phương. Mọi nhà tuyển dụng đều
+// chat được, không phân biệt gói dịch vụ (đã gỡ cổng gói 2026-11-23).
 export default function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const wantedId = searchParams.get("c");
@@ -40,7 +39,6 @@ export default function ChatPage() {
   const [keyword, setKeyword] = useState("");
   const [error, setError] = useState("");
   const [online, setOnline] = useState(false);
-  const [locked, setLocked] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -52,21 +50,24 @@ export default function ChatPage() {
   const initializedRef = useRef(false);
   const bottomRef = useRef(null);
 
-  activeRef.current = activeId;
-  myIdRef.current = myId;
+  // Đồng bộ ref để callback WebSocket đọc được giá trị mới nhất.
+  // Phải gán trong effect — gán thẳng lúc render bị luật
+  // react-hooks/refs của ESLint cấm.
+  useEffect(() => {
+    activeRef.current = activeId;
+    myIdRef.current = myId;
+  }, [activeId, myId]);
 
   const loadConversations = useCallback(async () => {
     try {
       const list = await getConversations();
       setConversations(list);
+      // Tải lại được là lỗi cũ (nếu có) đã hết — xóa banner, tránh
+      // lỗi thoáng qua lúc mới vào trang treo vĩnh viễn dù đã chạy êm.
+      setError("");
       return list;
     } catch (err) {
-      // 403 vì nhà tuyển dụng chưa có gói Pro/Premium -> khóa trang.
-      if ((err.message || "").includes("Pro/Premium")) {
-        setLocked(true);
-      } else {
-        setError(err.message || "Không tải được danh sách trò chuyện.");
-      }
+      setError(err.message || "Không tải được danh sách trò chuyện.");
       return [];
     }
   }, []);
@@ -80,6 +81,7 @@ export default function ChatPage() {
     try {
       const msgs = await getChatMessages(conversationId);
       setMessages(msgs);
+      setError("");
       // Đã đọc xong thì số tin chưa đọc ở danh sách cũng phải về 0.
       setConversations((prev) => prev.map((c) =>
           c.id === conversationId ? { ...c, unread: 0 } : c));
@@ -132,11 +134,7 @@ export default function ChatPage() {
           setMessages((prev) => prev.map((x) => (x.mine ? { ...x, read: true } : x)));
         }
       } else if (event.type === "error") {
-        if ((event.message || "").includes("Pro/Premium")) {
-          setLocked(true);
-        } else {
-          setError(event.message);
-        }
+        setError(event.message);
       }
     });
     socketRef.current = ctl;
@@ -210,43 +208,6 @@ export default function ChatPage() {
       !keyword.trim()
       || (c.partnerName || "").toLowerCase().includes(keyword.trim().toLowerCase()));
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unread || 0), 0);
-
-  // Nhà tuyển dụng gói Basic: backend chặn toàn bộ chat -> hiện
-  // màn hình mở khóa thay cho khung chat (ứng viên không gặp màn này).
-  if (locked) {
-    return (
-        <div className="chat-locked">
-          <span className="chat-locked__badge">TÍNH NĂNG PRO / PREMIUM</span>
-          <h2>Nhắn tin trực tiếp với ứng viên</h2>
-          <p>
-            Tài khoản của bạn đang ở gói <strong>Basic</strong> nên tính năng
-            Tin nhắn đang bị khóa. Nâng cấp lên gói <strong>Pro</strong> hoặc
-            <strong> Premium </strong> để trò chuyện realtime với ứng viên — kể
-            cả ứng viên đã ứng tuyển vào tin tuyển dụng của bạn.
-          </p>
-          <div className="chat-locked__actions">
-            <Link to="/employer/plan" className="chat-locked__btn chat-locked__btn--primary">
-              <IconCrown size={16} /> Xem gói dịch vụ
-            </Link>
-            <Link to="/employer/jobs" className="chat-locked__btn">Quay lại quản lý tin</Link>
-          </div>
-          <div className="chat-locked__features">
-            <div>
-              <strong>Chat realtime</strong>
-              <span>Nhắn tin tức thời qua WebSocket, có trạng thái đã xem và tự nối lại khi rớt mạng.</span>
-            </div>
-            <div>
-              <strong>Mọi cuộc trò chuyện</strong>
-              <span>Xem và trả lời mọi cuộc trò chuyện với ứng viên, không bị giới hạn ở tin đã ứng tuyển.</span>
-            </div>
-            <div>
-              <strong>Chủ động liên hệ</strong>
-              <span>Mở cuộc trò chuyện mới ngay từ trang Ứng viên và Tìm kiếm ứng viên.</span>
-            </div>
-          </div>
-        </div>
-    );
-  }
 
   return (
       <div className="chat-shell">
