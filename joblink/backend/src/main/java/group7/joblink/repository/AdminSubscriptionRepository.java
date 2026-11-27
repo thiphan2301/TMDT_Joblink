@@ -54,18 +54,4 @@ public interface AdminSubscriptionRepository
     @Query(value = "SELECT LAST_INSERT_ID()", nativeQuery = true)
     Long lastInsertId();
 
-    // Bật / tắt cờ ưu tiên + nổi bật cho toàn bộ tin của một nhà tuyển dụng.
-    // Trang việc làm công khai đã sắp xếp tin ưu tiên lên đầu
-    // (JobRepository.findAvailableJobs ORDER BY prioritized DESC) nên chỉ
-    // cần đổi cờ ở đây là tin của nhà Pro tự nổi lên, không phải sửa code khác.
-    @Modifying
-    @Query(value = """
-        UPDATE jobs j
-        JOIN companies c ON c.id = j.company_id
-        SET j.is_highlighted = :highlighted, j.is_prioritized = :prioritized
-        WHERE c.owner_id = :employerId
-        """, nativeQuery = true)
-    int setEmployerJobFlags(@Param("employerId") Integer employerId,
-                            @Param("highlighted") boolean highlighted,
-                            @Param("prioritized") boolean prioritized);
 }

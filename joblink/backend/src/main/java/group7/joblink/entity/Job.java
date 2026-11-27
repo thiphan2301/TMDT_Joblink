@@ -70,6 +70,19 @@ public class Job {
     @Column(name = "is_prioritized", nullable = false)
     private boolean prioritized;
 
+    // Gói của nhà tuyển dụng lúc đăng tin (không đổi khi họ mua / hết gói sau đó).
+    @Enumerated(EnumType.STRING)
+    @Column(name = "display_tier", nullable = false)
+    private DisplayTier displayTier = DisplayTier.basic;
+
+    // Lần đầu tin chuyển sang "open"; null nếu chưa từng đăng.
+    @Column(
+        name = "published_at",
+        insertable = false,
+        updatable = false
+    )
+    private LocalDateTime publishedAt;
+
     @Column(
         name = "created_at",
         nullable = false,
@@ -106,5 +119,22 @@ public class Job {
         hour,
         month,
         project
+    }
+
+    // Thứ tự khai báo = thứ hạng hiển thị tăng dần (basic < pro < premium).
+    public enum DisplayTier {
+        basic,
+        pro,
+        premium;
+
+        // "pro" -> pro; giá trị lạ hoặc null -> basic.
+        public static DisplayTier of(String tier) {
+            for (DisplayTier value : values()) {
+                if (value.name().equals(tier)) {
+                    return value;
+                }
+            }
+            return basic;
+        }
     }
 }

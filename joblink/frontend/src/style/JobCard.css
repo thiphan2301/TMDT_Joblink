@@ -18,6 +18,49 @@
   box-shadow: 0 10px 28px #182d5010;
 }
 
+/* Tin đăng khi nhà tuyển dụng có gói Pro / Premium nổi bật hơn tin thường */
+.job-card--pro {
+  border-color: #a8ceff;
+  background: linear-gradient(180deg, #f2f8ff 0%, #ffffff 130px);
+  box-shadow: 0 6px 18px #087cff14;
+}
+
+.job-card--premium {
+  border: 1.5px solid #f2c14e;
+  background: linear-gradient(180deg, #fff7e2 0%, #ffffff 150px);
+  box-shadow: 0 10px 26px #d9a21b26;
+}
+
+.job-card--premium:hover {
+  border-color: #e3a82b;
+  box-shadow: 0 14px 32px #d9a21b38;
+}
+
+.job-tier {
+  display: inline-flex;
+  align-items: center;
+  margin: 7px 0 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.job-card__company small + .job-tier {
+  margin-left: 8px;
+}
+
+.job-tier--pro {
+  background: #e3efff;
+  color: #0062cc;
+}
+
+.job-tier--premium {
+  background: linear-gradient(90deg, #f7b733, #f5873a);
+  color: white;
+}
+
 .job-card__top {
   display: flex;
   align-items: center;

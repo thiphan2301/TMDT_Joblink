@@ -36,7 +36,8 @@ public interface PublicCompanyRepository
                j.deadline, j.created_at, j.is_highlighted
         FROM jobs j
         WHERE j.company_id = :companyId AND j.status = 'open'
-        ORDER BY j.is_prioritized DESC, j.created_at DESC, j.id DESC
+        ORDER BY FIELD(j.display_tier, 'premium', 'pro', 'basic'),
+                 COALESCE(j.published_at, j.created_at) DESC, j.id DESC
         """, nativeQuery = true)
     List<Object[]> findOpenJobs(@Param("companyId") int companyId);
 

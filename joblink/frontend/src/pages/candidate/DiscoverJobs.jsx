@@ -3,6 +3,7 @@ import JobCard, {
     CompanyLogo,
     formatSalary,
 } from "../../components/JobCard";
+import { tierRank } from "../../components/jobTier";
 import { getJobs } from "../../services/jobService";
 import "../../style/DiscoverJobs.css";
 import { Link, useNavigate } from "react-router";
@@ -153,14 +154,14 @@ export default function DiscoverJobs() {
                     Number(a.salaryMax ?? a.salaryMin ?? -1);
             }
 
+            // Backend đã xếp theo gói lúc đăng + ngày đăng và xáo tin cùng gói
+            // cùng ngày; chỉ so gói để giữ nguyên thứ tự đó.
             if (sort === "priority") {
-                const priorityDifference =
-                    Number(b.prioritized) - Number(a.prioritized);
-                if (priorityDifference) return priorityDifference;
+                return tierRank(b) - tierRank(a);
             }
 
-            return String(b.createdAt || "").localeCompare(
-                String(a.createdAt || "")
+            return String(b.postedAt || b.createdAt || "").localeCompare(
+                String(a.postedAt || a.createdAt || "")
             ) || b.id - a.id;
         });
 

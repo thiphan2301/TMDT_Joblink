@@ -1,3 +1,4 @@
+import { TIER_BADGES } from "./jobTier";
 import "../style/JobCard.css";
 
 export function formatSalary(job) {
@@ -60,9 +61,13 @@ function formatDeadline(deadline) {
 
 export default function JobCard({ job, saved, onSave, onView }) {
   const highlighted = [true, 1, "1"].includes(job.highlighted);
+  const tierBadge = TIER_BADGES[job.displayTier];
+  const tierClass = tierBadge
+    ? `job-card--${job.displayTier}`
+    : highlighted ? "job-card--featured" : "";
 
   return (
-    <article className={`job-card ${highlighted ? "job-card--featured" : ""}`}>
+    <article className={`job-card ${tierClass}`}>
       <div className="job-card__top">
         <CompanyLogo name={job.companyName} src={job.companyLogo} />
 
@@ -71,6 +76,10 @@ export default function JobCard({ job, saved, onSave, onView }) {
 
           {job.verificationStatus === "verified" && (
             <small>✓ Nhà tuyển dụng xác thực</small>
+          )}
+
+          {tierBadge && (
+            <span className={`job-tier job-tier--${job.displayTier}`}>{tierBadge}</span>
           )}
         </div>
 

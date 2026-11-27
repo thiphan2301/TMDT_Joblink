@@ -239,6 +239,7 @@ public class EmployerService {
             requireJobPostCapacity(employerId, plan);
             wallet = requireWalletForSpend(employerId, tokenCost);
         }
+        // Quyền lợi theo gói tại thời điểm đăng; tin nháp được tính lại khi đăng lần đầu.
         boolean highlighted = plan.pkg() != null && plan.pkg().isCanHighlightJobs();
         boolean prioritized = plan.pkg() != null && plan.pkg().isCanPrioritizeJobs();
         jobRepository.insertJob(req.companyId(), req.title().trim(),
@@ -250,7 +251,7 @@ public class EmployerService {
                 req.vacancies() == null ? 1 : req.vacancies(),
                 req.workingSchedule(), req.deadline(),
                 status,
-                highlighted, prioritized,
+                highlighted, prioritized, plan.tier(),
                 displayDays, tokenCost);
         long newId = jobRepository.lastInsertId();
         if (wallet != null) {
@@ -279,6 +280,9 @@ public class EmployerService {
                 req.vacancies() == null ? 1 : req.vacancies(),
                 req.workingSchedule(), req.deadline(),
                 status);
+        if (opening) {
+            applyPostingTier(employerId, job);
+        }
         return getJob(employerId, jobId);
     }
 
@@ -294,6 +298,24 @@ public class EmployerService {
             chargeForOpeningJob(employerId, jobId);
         }
         jobRepository.updateJobStatus(jobId, status);
+        if (opening) {
+            applyPostingTier(employerId, job);
+        }
+    }
+
+    // Tin được đăng lần đầu (nháp -> open): ghi quyền lợi theo gói hiện tại.
+    // Đăng lại tin đã từng đăng thì giữ quyền lợi của lần đăng đầu, để mua gói
+    // mới hay hết gói không làm thay đổi tin cũ.
+    private void applyPostingTier(int employerId, Job job) {
+        if (job.getPublishedAt() != null) {
+            return;
+        }
+        PlanSnapshot plan = currentPlan(employerId);
+        ServicePackage pkg = plan.pkg();
+        jobRepository.updatePostingTier(job.getId(),
+                pkg != null && pkg.isCanHighlightJobs(),
+                pkg != null && pkg.isCanPrioritizeJobs(),
+                plan.tier());
     }
 
     @Transactional
@@ -734,15 +756,6 @@ public class EmployerService {
         );
     }
 
-    @Transactional
-    public void refreshJobFeatures(int employerId) {
-        ServicePackage servicePackage = currentPlan(employerId).pkg();
-        subscriptionRepository.setEmployerJobFlags(
-                employerId,
-                servicePackage != null && servicePackage.isCanHighlightJobs(),
-                servicePackage != null && servicePackage.isCanPrioritizeJobs());
-    }
-
     @Transactional(readOnly = true)
     public PackagesResponse getPackages(int employerId) {
         List<PackageCard> packages = packageRepository.findAll().stream()
@@ -870,7 +883,8 @@ public class EmployerService {
         if (tokenTransactionRepository.existsByIdempotencyKey("job:" + jobId)) {
             return;
         }
-        Object[] displayInfo = jobRepository.findDisplayInfoById(jobId);
+        List<Object[]> displayRows = jobRepository.findDisplayInfoById(jobId);
+        Object[] displayInfo = displayRows.isEmpty() ? null : displayRows.get(0);
         int displayDays = displayInfo == null || displayInfo[0] == null
                 ? JOB_DISPLAY_DAYS_DEFAULT : toInt(displayInfo[0]);
         int tokenCost = displayInfo == null || displayInfo[1] == null

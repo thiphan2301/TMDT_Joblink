@@ -58,10 +58,12 @@ public interface EmployerJobRepository extends JpaRepository<Job, Integer> {
     long countJobsForEmployerByStatus(@Param("employerId") Integer employerId,
                                       @Param("status") String status);
 
+    // Trả List vì native query nhiều cột trả về Object[] cho mỗi dòng; khai báo
+    // Object[] trực tiếp thì Spring Data bọc thêm một lớp mảng (lỗi ép kiểu).
     @Query(value = """
         SELECT display_days, token_cost FROM jobs WHERE id = :jobId
         """, nativeQuery = true)
-    Object[] findDisplayInfoById(@Param("jobId") Integer jobId);
+    List<Object[]> findDisplayInfoById(@Param("jobId") Integer jobId);
 
     // [display_days, token_cost] của nhiều tin (2 cột V7, entity chưa map).
     @Query(value = """
@@ -77,12 +79,13 @@ public interface EmployerJobRepository extends JpaRepository<Job, Integer> {
                           salary_min, salary_max, salary_unit, location,
                           job_type, level, vacancies, working_schedule,
                           deadline, status, is_highlighted, is_prioritized,
-                          display_days, token_cost)
+                          display_tier, display_days, token_cost, published_at)
         VALUES (:companyId, :title, :description, :requirements,
                 :salaryMin, :salaryMax, :salaryUnit, :location,
                 :jobType, :level, :vacancies, :workingSchedule,
                 :deadline, :status, :highlighted, :prioritized,
-                :displayDays, :tokenCost)
+                :displayTier, :displayDays, :tokenCost,
+                CASE WHEN :status = 'open' THEN CURRENT_TIMESTAMP END)
         """, nativeQuery = true)
     int insertJob(@Param("companyId") Integer companyId,
                   @Param("title") String title,
@@ -100,6 +103,7 @@ public interface EmployerJobRepository extends JpaRepository<Job, Integer> {
                   @Param("status") String status,
                   @Param("highlighted") boolean highlighted,
                   @Param("prioritized") boolean prioritized,
+                  @Param("displayTier") String displayTier,
                   @Param("displayDays") Integer displayDays,
                   @Param("tokenCost") Integer tokenCost);
 
@@ -153,13 +157,16 @@ public interface EmployerJobRepository extends JpaRepository<Job, Integer> {
             nativeQuery = true)
     int updateJobStatus(@Param("id") Integer id, @Param("status") String status);
 
+    // Ghi quyền lợi gói lúc đăng tin (gọi khi tin nháp được đăng lần đầu).
     @Modifying
     @Query(value = """
         UPDATE jobs SET is_highlighted = :highlighted,
-                        is_prioritized = :prioritized
+                        is_prioritized = :prioritized,
+                        display_tier = :displayTier
         WHERE id = :id
         """, nativeQuery = true)
-    int updateJobFlags(@Param("id") Integer id,
-                       @Param("highlighted") boolean highlighted,
-                       @Param("prioritized") boolean prioritized);
+    int updatePostingTier(@Param("id") Integer id,
+                          @Param("highlighted") boolean highlighted,
+                          @Param("prioritized") boolean prioritized,
+                          @Param("displayTier") String displayTier);
 }
