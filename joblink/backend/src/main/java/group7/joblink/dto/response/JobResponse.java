@@ -26,6 +26,10 @@ public record JobResponse(
     boolean acceptingApplications,
     boolean highlighted,
     boolean prioritized,
+    // Gói lúc đăng tin: basic | pro | premium (quyết định thứ tự + kiểu hiển thị).
+    String displayTier,
+    // Thời điểm đăng tin (lần đầu mở tin; tin cũ chưa có thì là ngày tạo).
+    LocalDateTime postedAt,
     // Số người đã ứng tuyển, dùng để sắp xếp "nhiều người ứng tuyển nhất".
     long applicationCount,
 

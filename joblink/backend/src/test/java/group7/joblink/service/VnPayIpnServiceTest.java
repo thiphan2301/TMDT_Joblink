@@ -44,7 +44,6 @@ class VnPayIpnServiceTest {
     private TokenTransactionRepository tokenTransactionRepository;
     private UserRepository userRepository;
     private AdminSubscriptionRepository subscriptionRepository;
-    private EmployerService employerService;
     private VnPayIpnService service;
     private Order order;
     private Payment payment;
@@ -62,7 +61,6 @@ class VnPayIpnServiceTest {
         tokenWalletRepository = mock(TokenWalletRepository.class);
         tokenTransactionRepository = mock(TokenTransactionRepository.class);
         subscriptionRepository = mock(AdminSubscriptionRepository.class);
-        employerService = mock(EmployerService.class);
         VnPayClient vnPayClient = new VnPayClient(
                 "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
                 "TESTCODE", SECRET, "http://localhost:5173/vi-token");
@@ -73,7 +71,6 @@ class VnPayIpnServiceTest {
                 tokenTransactionRepository,
                 subscriptionRepository,
                 userRepository,
-                employerService,
                 vnPayClient,
                 JsonMapper.builder().build());
 
@@ -160,7 +157,6 @@ class VnPayIpnServiceTest {
         var subscriptionCaptor =
                 org.mockito.ArgumentCaptor.forClass(group7.joblink.entity.Subscription.class);
         verify(subscriptionRepository).save(subscriptionCaptor.capture());
-        verify(employerService).refreshJobFeatures(USER_ID);
         assertThat(subscriptionCaptor.getValue().getPackageId()).isEqualTo(4);
         assertThat(subscriptionCaptor.getValue().getEndAt())
                 .isEqualTo(subscriptionCaptor.getValue().getStartAt().plusDays(30));

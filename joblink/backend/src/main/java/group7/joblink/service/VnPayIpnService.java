@@ -32,7 +32,6 @@ public class VnPayIpnService {
     private final TokenTransactionRepository tokenTransactionRepository;
     private final AdminSubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
-    private final EmployerService employerService;
     private final VnPayClient vnPayClient;
     private final ObjectMapper objectMapper;
 
@@ -43,7 +42,6 @@ public class VnPayIpnService {
             TokenTransactionRepository tokenTransactionRepository,
             AdminSubscriptionRepository subscriptionRepository,
             UserRepository userRepository,
-            EmployerService employerService,
             VnPayClient vnPayClient,
             ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
@@ -52,7 +50,6 @@ public class VnPayIpnService {
         this.tokenTransactionRepository = tokenTransactionRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
-        this.employerService = employerService;
         this.vnPayClient = vnPayClient;
         this.objectMapper = objectMapper;
     }
@@ -164,7 +161,7 @@ public class VnPayIpnService {
         subscriptionRepository.save(new Subscription(
                 order.getUserId(), order.getPackageId(), order.getId(),
                 startAt, startAt.plusDays(durationDays)));
-        employerService.refreshJobFeatures(order.getUserId());
+        // Gói mới chỉ áp dụng cho tin đăng từ bây giờ; tin cũ giữ quyền lợi gói cũ.
         if (includedTokens > 0) {
             tokenTransactionRepository.save(TokenTransaction.forPurchase(
                     wallet, order.getId(), includedTokens));

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import JobCard from "../../components/JobCard";
+import { tierRank } from "../../components/jobTier";
 import useSavedJobs from "../../hooks/useSavedJobs";
 import { getJobs } from "../../services/jobService";
 import "../../style/JobsPages.css";
@@ -44,18 +45,23 @@ function compareSalary(a, b, direction) {
 }
 
 function compareNewest(a, b) {
-  return String(b.createdAt || "").localeCompare(
-    String(a.createdAt || "")
+  return String(b.postedAt || b.createdAt || "").localeCompare(
+    String(a.postedAt || a.createdAt || "")
   ) || b.id - a.id;
 }
 
 // So sánh theo kiểu đã chọn; bằng nhau thì tin mới hơn đứng trước.
 function compareJobs(a, b, sort) {
+  // Ưu tiên hiển thị: backend đã xếp theo gói lúc đăng, ngày đăng và xáo
+  // ngẫu nhiên tin cùng gói cùng ngày -> chỉ so gói, còn lại giữ thứ tự backend
+  // (Array.sort giữ nguyên thứ tự các phần tử bằng nhau).
+  if (sort === "priority") {
+    return tierRank(b) - tierRank(a);
+  }
+
   let difference = 0;
 
-  if (sort === "priority") {
-    difference = Number(b.prioritized) - Number(a.prioritized);
-  } else if (sort === "salary_desc") {
+  if (sort === "salary_desc") {
     difference = compareSalary(a, b, "desc");
   } else if (sort === "salary_asc") {
     difference = compareSalary(a, b, "asc");

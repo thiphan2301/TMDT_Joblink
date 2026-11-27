@@ -475,9 +475,9 @@ public class AdminService {
 
     // Admin cấp gói Pro / hạ về Basic cho một nhà tuyển dụng.
     // Cấp Pro = tạo 1 đơn hàng ghi nhận (tổng tiền 0đ vì cấp tay, không
-    // tính doanh thu) + 1 lượt đăng ký đang hiệu lực tới hết thời hạn gói,
-    // đồng thời bật cờ ưu tiên / nổi bật cho mọi tin của nhà đó. Hạ Basic =
-    // hủy các lượt đăng ký đang hiệu lực và tắt 2 cờ đó.
+    // tính doanh thu) + 1 lượt đăng ký đang hiệu lực tới hết thời hạn gói.
+    // Hạ Basic = hủy các lượt đăng ký đang hiệu lực. Gói mới chỉ áp dụng cho
+    // tin đăng sau đó; tin đã đăng giữ quyền lợi của gói lúc đăng.
     @Transactional
     public UserRow setEmployerPlan(int id, AdminPlanRequest req) {
         User user = findUserOrThrow(id);
@@ -494,7 +494,6 @@ public class AdminService {
 
         if ("basic".equals(plan)) {
             active.forEach(Subscription::cancel);
-            subscriptionRepository.setEmployerJobFlags(id, false, false);
             return findUserRow(id);
         }
 
@@ -520,7 +519,6 @@ public class AdminService {
         subscriptionRepository.save(new Subscription(
                 id, pkg.getId(), (int) orderId, now,
                 now.plusDays(pkg.getDurationDays() == null ? 30 : pkg.getDurationDays())));
-        subscriptionRepository.setEmployerJobFlags(id, true, true);
         return findUserRow(id);
     }
 
@@ -617,23 +615,23 @@ public class AdminService {
         if (!Set.of("hour", "month", "project").contains(salaryUnit)) {
             throw badRequest("Đơn vị lương không hợp lệ.");
         }
+        // Tin mới hưởng quyền lợi theo gói hiện tại của chủ công ty; không đụng
+        // tới các tin đã đăng trước đó.
+        String tier = companyRepository.findOwnerIdByCompanyId(req.companyId())
+                .map(ownerId -> employerPlanMap().getOrDefault(ownerId, "basic"))
+                .orElse("basic");
         jobRepository.insertJob(req.companyId(), title, req.description(),
                 req.salaryMin(), req.salaryMax(), salaryUnit,
                 req.location(), req.jobType(),
                 req.level() == null ? null : req.level().toLowerCase(Locale.ROOT),
                 req.workingSchedule(), req.deadline(), status,
+                isPriorityPlan(tier), tier,
                 req.displayDays() == null ? JOB_DISPLAY_DAYS_DEFAULT : req.displayDays(),
                 req.tokenCost() == null ? JOB_TOKEN_COST_DEFAULT : req.tokenCost(),
                 adminId);
         if (req.industry() != null && !req.industry().isBlank()) {
             companyRepository.updateIndustryById(req.companyId(), req.industry());
         }
-        // Tin mới của nhà Pro cũng phải được ưu tiên / nổi bật ngay.
-        companyRepository.findOwnerIdByCompanyId(req.companyId()).ifPresent(ownerId -> {
-            if (isPriorityPlan(employerPlanMap().get(ownerId))) {
-                subscriptionRepository.setEmployerJobFlags(ownerId, true, true);
-            }
-        });
     }
 
     @Transactional

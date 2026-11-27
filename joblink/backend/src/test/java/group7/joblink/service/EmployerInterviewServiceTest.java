@@ -180,6 +180,8 @@ class EmployerInterviewServiceTest {
         ReflectionTestUtils.setField(application, "job", job);
         ReflectionTestUtils.setField(application, "status", status);
 
+        // Service khóa dòng đơn (findForUpdate) rồi mới kiểm tra quyền sở hữu (findById).
+        when(applicationRepository.findForUpdate(APPLICATION_ID)).thenReturn(Optional.of(application));
         when(applicationRepository.findById(APPLICATION_ID)).thenReturn(Optional.of(application));
     }
 

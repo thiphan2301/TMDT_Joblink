@@ -72,16 +72,21 @@ public interface AdminJobRepository extends JpaRepository<Job, Integer> {
 
     // Admin đăng tin hộ nhà tuyển dụng (kèm người duyệt + thời điểm duyệt).
     // vacancies để mặc định 1 như quy ước cũ của khu vực admin.
+    // Quyền lợi (ưu tiên / nổi bật / display_tier) theo gói của chủ công ty lúc đăng.
     @Modifying
     @Query(value = """
         INSERT INTO jobs (company_id, title, description, salary_min, salary_max,
                           salary_unit, location, job_type, level, vacancies,
                           working_schedule, deadline, status,
-                          display_days, token_cost, reviewed_by, reviewed_at)
+                          is_highlighted, is_prioritized, display_tier,
+                          display_days, token_cost, reviewed_by, reviewed_at,
+                          published_at)
         VALUES (:companyId, :title, :description, :salaryMin, :salaryMax,
                 :salaryUnit, :location, :jobType, :level, 1,
                 :workingSchedule, :deadline, :status,
-                :displayDays, :tokenCost, :adminId, NOW())
+                :featured, :featured, :displayTier,
+                :displayDays, :tokenCost, :adminId, NOW(),
+                CASE WHEN :status = 'open' THEN NOW() END)
         """, nativeQuery = true)
     int insertJob(@Param("companyId") Integer companyId,
                   @Param("title") String title,
@@ -95,6 +100,8 @@ public interface AdminJobRepository extends JpaRepository<Job, Integer> {
                   @Param("workingSchedule") String workingSchedule,
                   @Param("deadline") LocalDate deadline,
                   @Param("status") String status,
+                  @Param("featured") boolean featured,
+                  @Param("displayTier") String displayTier,
                   @Param("displayDays") Integer displayDays,
                   @Param("tokenCost") Integer tokenCost,
                   @Param("adminId") Integer adminId);
